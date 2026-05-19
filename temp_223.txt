@@ -1,0 +1,560 @@
+<script lang="ts">
+	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
+	import { onMount } from 'svelte';
+	import { currentUser, loadCredit } from '$lib/store.svelte';
+	import { suitSymbol, suitColor } from '$lib/games/blackjackEngine';
+
+	let room: any = $state(null);
+	let error = $state('');
+	let loading = $state(true);
+	let polling = $state(true);
+	let betAmount = $state(50);
+	let betChoice = $state('');
+	let actionLoading = $state(false);
+	let copied = $state(false);
+
+	let code = $derived($page.params.code);
+	let isHost = $derived(room?.hostId === currentUser.value?.id);
+	let myPlayer = $derived(room?.players?.find((p: any) => p.userId === currentUser.value?.id));
+	let otherPlayers = $derived(room?.players?.filter((p: any) => p.userId !== room?.hostId) ?? []);
+	let allPlayersReady = $derived(otherPlayers.length > 0 && otherPlayers.every((p: any) => p.ready));
+	let needsBetChoice = $derived(room?.game === 'baccarat' || room?.game === 'dragontiger' || room?.game === 'hilo');
+
+	// Blackjack-specific
+	let bjAllStood = $derived(
+		room?.game === 'blackjack' && room?.phase === 'playing' &&
+		otherPlayers.every((p: any) => p.stood)
+	);
+	let myBjHand = $derived(myPlayer?.hand ?? []);
+	let myBjValue = $derived(calcHandValue(myBjHand));
+
+	function calcHandValue(hand: any[]): number {
+		if (!hand || hand.length === 0) return 0;
+		let total = 0, aces = 0;
+		for (const c of hand) {
+			if (!c) continue;
+			if (c.rank === 1) { aces++; total += 11; }
+			else if (c.rank >= 10) total += 10;
+			else total += c.rank;
+		}
+		while (total > 21 && aces > 0) { total -= 10; aces--; }
+		return total;
+	}
+
+	let pollTimer: ReturnType<typeof setInterval>;
+
+	onMount(() => {
+		fetchRoom();
+		pollTimer = setInterval(() => {
+			if (polling) fetchRoom();
+		}, 1500);
+		return () => clearInterval(pollTimer);
+	});
+
+	async function fetchRoom() {
+		try {
+			const res = await fetch(`/api/room/${code}`);
+			const data = await res.json();
+			if (!res.ok) {
+				if (data.closed) {
+					error = 'ห้องถูกปิดแล้ว';
+					polling = false;
+				} else {
+					error = data.error || 'โหลดข้อมูลห้องไม่ได้';
+				}
+				room = null;
+				loading = false;
+				return;
+			}
+			room = data.room;
+			error = '';
+		} catch {
+			error = 'เชื่อมต่อไม่ได้';
+		}
+		loading = false;
+	}
+
+	async function apiPost(endpoint: string, body: any = {}) {
+		actionLoading = true;
+		try {
+			const res = await fetch(`/api/room/${code}/${endpoint}`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(body)
+			});
+			const data = await res.json();
+			if (!res.ok) {
+				error = data.error || 'เกิดข้อผิดพลาด';
+			} else {
+				if (data.room) room = data.room;
+				error = '';
+			}
+			loadCredit();
+		} catch {
+			error = 'เชื่อมต่อไม่ได้';
+		}
+		actionLoading = false;
+	}
+
+	function startRound() { apiPost('next'); }
+	function deal() { apiPost('deal'); }
+	function doBet() { apiPost('bet', { bet: betAmount, betChoice: needsBetChoice ? betChoice : undefined }); }
+	function hit() { apiPost('action', { action: 'hit' }); }
+	function stand() { apiPost('action', { action: 'stand' }); }
+	function revealDealer() { apiPost('action', { action: 'reveal' }); }
+
+	async function leaveRoom() {
+		await apiPost('leave');
+		goto('/room');
+	}
+
+	async function closeRoomAction() {
+		await fetch(`/api/room/${code}/close`, { method: 'POST' });
+		goto('/room');
+	}
+
+	function copyCode() {
+		navigator.clipboard.writeText(code);
+		copied = true;
+		setTimeout(() => { copied = false; }, 1500);
+	}
+
+	function renderCard(card: any): string {
+		if (!card) return '?';
+		const sym = card.suit === 'hearts' ? '♥' : card.suit === 'diamonds' ? '♦' : card.suit === 'clubs' ? '♣' : '♠';
+		return `${card.display}${sym}`;
+	}
+
+	function cardColorClass(card: any): string {
+		if (!card) return 'text-slot-muted';
+		return (card.suit === 'hearts' || card.suit === 'diamonds') ? 'text-red-500' : 'text-slot-text';
+	}
+
+	function resultLabel(r: string | undefined): string {
+		if (r === 'win') return 'ชนะ';
+		if (r === 'lose') return 'แพ้';
+		if (r === 'push') return 'เสมอ';
+		return '';
+	}
+
+	function resultColor(r: string | undefined): string {
+		if (r === 'win') return 'text-slot-win';
+		if (r === 'lose') return 'text-slot-lose';
+		return 'text-slot-muted';
+	}
+
+	function phaseLabel(phase: string): string {
+		switch (phase) {
+			case 'waiting': return 'รอผู้เล่น';
+			case 'betting': return 'วางเดิมพัน';
+			case 'dealing': return 'กำลังแจก';
+			case 'playing': return 'กำลังเล่น';
+			case 'result': return 'แสดงผล';
+			default: return phase;
+		}
+	}
+</script>
+
+<svelte:head>
+	<title>ห้อง {code} - BUNG TAE DUBAI</title>
+</svelte:head>
+
+{#if loading}
+	<div class="flex min-h-[40vh] items-center justify-center">
+		<p class="text-sm text-slot-muted animate-pulse">กำลังโหลดห้อง...</p>
+	</div>
+{:else if !room}
+	<div class="mx-auto max-w-md space-y-4 text-center">
+		<p class="text-lg font-bold text-slot-lose">{error || 'ไม่พบห้อง'}</p>
+		<button onclick={() => goto('/room')} class="cursor-pointer rounded-xl bg-slot-accent px-6 py-2 text-sm font-bold text-white transition hover:brightness-110">
+			กลับหน้าห้อง
+		</button>
+	</div>
+{:else}
+	<div class="mx-auto max-w-lg space-y-3">
+		<!-- Header -->
+		<div class="flex items-center justify-between rounded-xl border border-slot-border bg-slot-surface px-4 py-2.5">
+			<div class="flex items-center gap-2">
+				<button onclick={copyCode} class="cursor-pointer rounded-lg bg-slot-accent/10 px-2.5 py-1 text-xs font-bold tracking-wider text-slot-accent transition hover:bg-slot-accent/20" title="คัดลอกรหัส">
+					{copied ? 'คัดลอกแล้ว!' : code}
+				</button>
+				<span class="text-sm font-bold text-slot-text">{room.gameName}</span>
+			</div>
+			<div class="flex items-center gap-2">
+				<span class="rounded-md bg-slot-accent/10 px-2 py-0.5 text-[10px] font-bold text-slot-accent">{phaseLabel(room.phase)}</span>
+				<span class="text-[10px] text-slot-muted">R{room.round}</span>
+			</div>
+		</div>
+
+		<!-- Error -->
+		{#if error}
+			<div class="rounded-lg bg-slot-lose/10 border border-slot-lose/30 px-3 py-2 text-center text-xs text-slot-lose">
+				{error}
+			</div>
+		{/if}
+
+		<!-- Players list -->
+		<div class="rounded-xl border border-slot-border bg-slot-surface p-3">
+			<div class="mb-2 flex items-center justify-between">
+				<span class="text-[11px] font-bold text-slot-muted">ผู้เล่น ({room.players.length})</span>
+				{#if isHost}
+					<span class="text-[10px] text-slot-accent font-bold">คุณเป็นเจ้ามือ</span>
+				{:else}
+					<span class="text-[10px] text-slot-muted">เจ้ามือ: {room.players.find((p: any) => p.userId === room.hostId)?.username}</span>
+				{/if}
+			</div>
+			<div class="flex flex-wrap gap-1.5">
+				{#each room.players as player}
+					<div class="flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px]
+						{player.userId === room.hostId ? 'border-slot-accent/40 bg-slot-accent/5' : player.ready ? 'border-slot-win/40 bg-slot-win/5' : 'border-slot-border bg-slot-bg'}">
+						<span class="font-bold {player.userId === room.hostId ? 'text-slot-accent' : 'text-slot-text'}">
+							{player.userId === room.hostId ? '👑' : '👤'} {player.username}
+						</span>
+						{#if player.userId !== room.hostId}
+							{#if player.ready && room.phase === 'betting'}
+								<span class="text-[9px] text-slot-win">✓ ฿{player.bet}</span>
+							{/if}
+							{#if player.result}
+								<span class="text-[9px] font-bold {resultColor(player.result)}">{resultLabel(player.result)}</span>
+							{/if}
+						{/if}
+					</div>
+				{/each}
+			</div>
+		</div>
+
+		<!-- Game Table -->
+		{#if room.phase !== 'waiting'}
+			<div class="rounded-xl border border-slot-border bg-slot-surface p-3 sm:p-4">
+				<!-- Baccarat -->
+				{#if room.game === 'baccarat' && room.gameState}
+					<div class="space-y-3">
+						<div class="grid grid-cols-2 gap-3">
+							<div class="rounded-lg border border-blue-500/30 bg-blue-500/5 p-3 text-center">
+								<p class="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Player</p>
+								<div class="mt-2 flex justify-center gap-1.5">
+									{#each room.gameState.playerHand as card}
+										<span class="rounded bg-white px-1.5 py-0.5 text-sm font-bold shadow-sm {cardColorClass(card)}">{renderCard(card)}</span>
+									{/each}
+								</div>
+								<p class="mt-1 text-xs font-bold text-slot-text">{room.gameState.playerHand?.reduce((s: number, c: any) => (s + (c.rank >= 10 ? 0 : c.rank)) % 10, 0) ?? ''}</p>
+							</div>
+							<div class="rounded-lg border border-red-500/30 bg-red-500/5 p-3 text-center">
+								<p class="text-[10px] font-bold text-red-400 uppercase tracking-wider">Banker</p>
+								<div class="mt-2 flex justify-center gap-1.5">
+									{#each room.gameState.bankerHand as card}
+										<span class="rounded bg-white px-1.5 py-0.5 text-sm font-bold shadow-sm {cardColorClass(card)}">{renderCard(card)}</span>
+									{/each}
+								</div>
+								<p class="mt-1 text-xs font-bold text-slot-text">{room.gameState.bankerHand?.reduce((s: number, c: any) => (s + (c.rank >= 10 ? 0 : c.rank)) % 10, 0) ?? ''}</p>
+							</div>
+						</div>
+						{#if room.phase === 'result'}
+							<p class="text-center text-sm font-bold {room.gameState.result === 'player' ? 'text-blue-400' : room.gameState.result === 'banker' ? 'text-red-400' : 'text-slot-accent'}">
+								ผล: {room.gameState.result === 'player' ? 'Player ชนะ' : room.gameState.result === 'banker' ? 'Banker ชนะ' : 'เสมอ (Tie)'}
+							</p>
+						{/if}
+					</div>
+
+				<!-- Dragon Tiger -->
+				{:else if room.game === 'dragontiger' && room.gameState}
+					<div class="space-y-3">
+						<div class="grid grid-cols-2 gap-3">
+							<div class="rounded-lg border border-blue-500/30 bg-blue-500/5 p-3 text-center">
+								<p class="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Dragon</p>
+								<div class="mt-2">
+									<span class="rounded bg-white px-2 py-1 text-lg font-bold shadow-sm {cardColorClass(room.gameState.dragon)}">{renderCard(room.gameState.dragon)}</span>
+								</div>
+							</div>
+							<div class="rounded-lg border border-red-500/30 bg-red-500/5 p-3 text-center">
+								<p class="text-[10px] font-bold text-red-400 uppercase tracking-wider">Tiger</p>
+								<div class="mt-2">
+									<span class="rounded bg-white px-2 py-1 text-lg font-bold shadow-sm {cardColorClass(room.gameState.tiger)}">{renderCard(room.gameState.tiger)}</span>
+								</div>
+							</div>
+						</div>
+						{#if room.phase === 'result'}
+							<p class="text-center text-sm font-bold {room.gameState.result === 'dragon' ? 'text-blue-400' : room.gameState.result === 'tiger' ? 'text-red-400' : 'text-slot-accent'}">
+								ผล: {room.gameState.result === 'dragon' ? 'Dragon ชนะ' : room.gameState.result === 'tiger' ? 'Tiger ชนะ' : 'เสมอ (Tie)'}
+							</p>
+						{/if}
+					</div>
+
+				<!-- Hi-Lo -->
+				{:else if room.game === 'hilo' && room.gameState}
+					<div class="space-y-3 text-center">
+						<div class="flex items-center justify-center gap-4">
+							<div>
+								<p class="text-[10px] text-slot-muted">ไพ่ตั้ง</p>
+								<span class="inline-block rounded bg-white px-3 py-1.5 text-xl font-bold shadow-sm {cardColorClass(room.gameState.baseCard)}">{renderCard(room.gameState.baseCard)}</span>
+							</div>
+							<span class="text-lg text-slot-muted">→</span>
+							<div>
+								<p class="text-[10px] text-slot-muted">ไพ่จั่ว</p>
+								<span class="inline-block rounded bg-white px-3 py-1.5 text-xl font-bold shadow-sm {cardColorClass(room.gameState.nextCard)}">{renderCard(room.gameState.nextCard)}</span>
+							</div>
+						</div>
+						{#if room.phase === 'result'}
+							<p class="text-sm font-bold text-slot-text">
+								{room.gameState.nextCard.rank > room.gameState.baseCard.rank ? 'สูง (High)' : room.gameState.nextCard.rank < room.gameState.baseCard.rank ? 'ต่ำ (Low)' : 'เท่ากัน'}
+							</p>
+						{/if}
+					</div>
+
+				<!-- Pokdeng -->
+				{:else if room.game === 'pokdeng' && room.gameState}
+					<div class="space-y-3">
+						<div class="text-center">
+							<p class="text-[10px] font-bold text-slot-muted uppercase tracking-wider">เจ้ามือ</p>
+							<div class="mt-1 flex justify-center gap-1.5">
+								{#each room.gameState.dealerHand as card}
+									<span class="rounded bg-white px-2 py-1 text-sm font-bold shadow-sm {cardColorClass(card)}">{renderCard(card)}</span>
+								{/each}
+							</div>
+						</div>
+						{#if !isHost && myPlayer?.hand}
+							<div class="text-center border-t border-slot-border pt-2">
+								<p class="text-[10px] font-bold text-slot-accent">มือของคุณ</p>
+								<div class="mt-1 flex justify-center gap-1.5">
+									{#each myPlayer.hand as card}
+										<span class="rounded bg-white px-2 py-1 text-sm font-bold shadow-sm {cardColorClass(card)}">{renderCard(card)}</span>
+									{/each}
+								</div>
+							</div>
+						{/if}
+					</div>
+
+				<!-- Blackjack -->
+				{:else if room.game === 'blackjack' && room.gameState}
+					<div class="space-y-3">
+						<!-- Dealer hand -->
+						<div class="text-center">
+							<p class="text-[10px] font-bold text-slot-muted uppercase tracking-wider">เจ้ามือ</p>
+							<div class="mt-1 flex justify-center gap-1.5">
+								{#each room.gameState.dealerHand as card, i}
+									{#if card}
+										<span class="rounded bg-white px-2 py-1 text-sm font-bold shadow-sm {cardColorClass(card)}">{renderCard(card)}</span>
+									{:else}
+										<span class="rounded bg-slot-accent/20 px-2 py-1 text-sm font-bold text-slot-accent shadow-sm">?</span>
+									{/if}
+								{/each}
+							</div>
+							{#if room.gameState.dealerRevealed}
+								<p class="mt-0.5 text-xs font-bold text-slot-text">{calcHandValue(room.gameState.dealerHand)} แต้ม</p>
+							{/if}
+						</div>
+
+						<!-- Players' hands -->
+						<div class="space-y-2 border-t border-slot-border pt-2">
+							{#each otherPlayers as player}
+								{#if player.hand}
+									<div class="flex items-center justify-between rounded-lg bg-slot-bg px-3 py-2">
+										<div>
+											<span class="text-[11px] font-bold text-slot-text">{player.username}</span>
+											<span class="ml-1 text-[10px] text-slot-muted">฿{player.bet}</span>
+											{#if player.result}
+												<span class="ml-1 text-[10px] font-bold {resultColor(player.result)}">{resultLabel(player.result)}</span>
+												{#if player.payout && player.payout > 0}
+													<span class="text-[10px] text-slot-win">+{player.payout}</span>
+												{/if}
+											{/if}
+										</div>
+										<div class="flex items-center gap-1">
+											{#each player.hand as card}
+												{#if card}
+													<span class="rounded bg-white px-1.5 py-0.5 text-[11px] font-bold shadow-sm {cardColorClass(card)}">{renderCard(card)}</span>
+												{:else}
+													<span class="rounded bg-slot-border px-1.5 py-0.5 text-[11px] text-slot-muted">?</span>
+												{/if}
+											{/each}
+											<span class="ml-1 text-[11px] font-bold text-slot-text">{calcHandValue(player.hand.filter((c: any) => c))}
+												{#if player.stood}
+													<span class="text-[9px] text-slot-muted">(หยุด)</span>
+												{/if}
+											</span>
+										</div>
+									</div>
+								{/if}
+							{/each}
+						</div>
+					</div>
+				{/if}
+			</div>
+
+			<!-- Player results summary in result phase -->
+			{#if room.phase === 'result'}
+				<div class="rounded-xl border border-slot-border bg-slot-surface p-3">
+					<p class="mb-2 text-[11px] font-bold text-slot-muted">สรุปผลรอบที่ {room.round}</p>
+					{#each otherPlayers as player}
+						<div class="flex items-center justify-between py-1 text-xs">
+							<span class="text-slot-text">{player.username}</span>
+							<div class="flex items-center gap-2">
+								<span class="text-slot-muted">เดิมพัน ฿{player.bet}</span>
+								<span class="font-bold {resultColor(player.result)}">
+									{resultLabel(player.result)}
+									{#if player.payout !== undefined}
+										({player.payout > player.bet ? '+' : ''}{player.payout - player.bet})
+									{/if}
+								</span>
+							</div>
+						</div>
+					{/each}
+				</div>
+			{/if}
+		{/if}
+
+		<!-- Controls -->
+		<div class="space-y-2">
+			<!-- Host controls -->
+			{#if isHost}
+				{#if room.phase === 'waiting' || room.phase === 'result'}
+					<button
+						onclick={startRound}
+						disabled={actionLoading || otherPlayers.length === 0}
+						class="w-full cursor-pointer rounded-xl bg-slot-accent px-4 py-2.5 text-sm font-bold text-white transition hover:brightness-110 active:scale-[0.98] disabled:opacity-50"
+					>
+						{room.phase === 'waiting' ? 'เริ่มรอบแรก' : 'เริ่มรอบใหม่'}
+					</button>
+				{/if}
+				{#if room.phase === 'betting'}
+					<button
+						onclick={deal}
+						disabled={actionLoading || !allPlayersReady}
+						class="w-full cursor-pointer rounded-xl bg-slot-win px-4 py-2.5 text-sm font-bold text-white transition hover:brightness-110 active:scale-[0.98] disabled:opacity-50"
+					>
+						{allPlayersReady ? 'แจกไพ่' : 'รอผู้เล่นวางเดิมพัน...'}
+					</button>
+				{/if}
+				{#if room.phase === 'playing' && room.game === 'blackjack'}
+					<button
+						onclick={revealDealer}
+						disabled={actionLoading}
+						class="w-full cursor-pointer rounded-xl bg-slot-accent px-4 py-2.5 text-sm font-bold text-white transition hover:brightness-110 active:scale-[0.98] disabled:opacity-50"
+					>
+						{bjAllStood ? 'เปิดไพ่เจ้ามือ' : 'รอผู้เล่น... (หรือบังคับเปิด)'}
+					</button>
+				{/if}
+
+			<!-- Player controls -->
+			{:else}
+				{#if room.phase === 'betting' && !myPlayer?.ready}
+					<div class="rounded-xl border border-slot-border bg-slot-surface p-3 space-y-2">
+						<!-- Bet choice for specific games -->
+						{#if room.game === 'baccarat'}
+							<div class="flex gap-1.5">
+								{#each [['player', 'Player', 'text-blue-400'], ['banker', 'Banker', 'text-red-400'], ['tie', 'Tie x8', 'text-slot-accent']] as [val, label, cls]}
+									<button
+										onclick={() => (betChoice = val)}
+										class="flex-1 cursor-pointer rounded-lg border py-1.5 text-[11px] font-bold transition
+											{betChoice === val ? `border-slot-accent bg-slot-accent/10 ${cls}` : 'border-slot-border bg-slot-bg text-slot-muted hover:text-slot-text'}"
+									>{label}</button>
+								{/each}
+							</div>
+						{:else if room.game === 'dragontiger'}
+							<div class="flex gap-1.5">
+								{#each [['dragon', 'Dragon', 'text-blue-400'], ['tiger', 'Tiger', 'text-red-400'], ['tie', 'Tie x8', 'text-slot-accent']] as [val, label, cls]}
+									<button
+										onclick={() => (betChoice = val)}
+										class="flex-1 cursor-pointer rounded-lg border py-1.5 text-[11px] font-bold transition
+											{betChoice === val ? `border-slot-accent bg-slot-accent/10 ${cls}` : 'border-slot-border bg-slot-bg text-slot-muted hover:text-slot-text'}"
+									>{label}</button>
+								{/each}
+							</div>
+						{:else if room.game === 'hilo'}
+							<div class="flex gap-1.5">
+								{#each [['high', 'สูง (High)', 'text-slot-win'], ['low', 'ต่ำ (Low)', 'text-slot-lose']] as [val, label, cls]}
+									<button
+										onclick={() => (betChoice = val)}
+										class="flex-1 cursor-pointer rounded-lg border py-1.5 text-[11px] font-bold transition
+											{betChoice === val ? `border-slot-accent bg-slot-accent/10 ${cls}` : 'border-slot-border bg-slot-bg text-slot-muted hover:text-slot-text'}"
+									>{label}</button>
+								{/each}
+							</div>
+						{/if}
+
+						<!-- Bet amount -->
+						<div class="flex items-center gap-2">
+							<button onclick={() => { betAmount = Math.max(10, betAmount - 50); }} class="cursor-pointer rounded-lg border border-slot-border px-3 py-1.5 text-sm font-bold text-slot-muted transition hover:text-slot-text">−</button>
+							<input
+								type="number"
+								bind:value={betAmount}
+								min="10"
+								class="flex-1 rounded-lg border border-slot-border bg-slot-bg px-3 py-1.5 text-center text-sm font-bold outline-none focus:border-slot-accent [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+							/>
+							<button onclick={() => { betAmount += 50; }} class="cursor-pointer rounded-lg border border-slot-border px-3 py-1.5 text-sm font-bold text-slot-muted transition hover:text-slot-text">+</button>
+						</div>
+						<div class="flex gap-1">
+							{#each [10, 50, 100, 500] as amt}
+								<button
+									onclick={() => (betAmount = amt)}
+									class="flex-1 cursor-pointer rounded-lg border border-slot-border py-1 text-[10px] font-bold text-slot-muted transition hover:bg-slot-bg hover:text-slot-text"
+								>฿{amt}</button>
+							{/each}
+						</div>
+						<button
+							onclick={doBet}
+							disabled={actionLoading || betAmount < 1 || (needsBetChoice && !betChoice)}
+							class="w-full cursor-pointer rounded-xl bg-slot-win px-4 py-2.5 text-sm font-bold text-white transition hover:brightness-110 active:scale-[0.98] disabled:opacity-50"
+						>
+							วางเดิมพัน ฿{betAmount}
+						</button>
+					</div>
+				{:else if room.phase === 'betting' && myPlayer?.ready}
+					<div class="rounded-xl border border-slot-win/30 bg-slot-win/5 px-4 py-2.5 text-center text-xs font-bold text-slot-win">
+						วางเดิมพันแล้ว ฿{myPlayer.bet} — รอเจ้ามือแจกไพ่...
+					</div>
+				{/if}
+
+				{#if room.phase === 'playing' && room.game === 'blackjack' && !isHost && myPlayer && !myPlayer.stood}
+					<div class="flex gap-2">
+						<button
+							onclick={hit}
+							disabled={actionLoading}
+							class="flex-1 cursor-pointer rounded-xl bg-slot-win px-4 py-2.5 text-sm font-bold text-white transition hover:brightness-110 active:scale-[0.98] disabled:opacity-50"
+						>
+							จั่ว (Hit)
+						</button>
+						<button
+							onclick={stand}
+							disabled={actionLoading}
+							class="flex-1 cursor-pointer rounded-xl bg-slot-lose px-4 py-2.5 text-sm font-bold text-white transition hover:brightness-110 active:scale-[0.98] disabled:opacity-50"
+						>
+							หยุด (Stand)
+						</button>
+					</div>
+					<p class="text-center text-[11px] text-slot-muted">แต้มของคุณ: <span class="font-bold text-slot-text">{myBjValue}</span></p>
+				{:else if room.phase === 'playing' && room.game === 'blackjack' && !isHost && myPlayer?.stood}
+					<div class="rounded-xl border border-slot-border bg-slot-bg px-4 py-2 text-center text-xs text-slot-muted">
+						{myPlayer.result === 'lose' ? 'บัสท์! เกิน 21' : 'หยุดแล้ว — รอเจ้ามือเปิดไพ่...'}
+					</div>
+				{/if}
+
+				{#if room.phase === 'waiting'}
+					<div class="rounded-xl border border-slot-border bg-slot-bg px-4 py-2.5 text-center text-xs text-slot-muted">
+						รอเจ้ามือเริ่มรอบ...
+					</div>
+				{/if}
+			{/if}
+
+			<!-- Leave / Close -->
+			<div class="flex gap-2 pt-1">
+				{#if isHost}
+					<button
+						onclick={closeRoomAction}
+						class="flex-1 cursor-pointer rounded-xl border border-slot-lose/30 px-4 py-2 text-xs font-medium text-slot-lose transition hover:bg-slot-lose/5"
+					>
+						ปิดห้อง
+					</button>
+				{:else}
+					<button
+						onclick={leaveRoom}
+						class="flex-1 cursor-pointer rounded-xl border border-slot-border px-4 py-2 text-xs font-medium text-slot-muted transition hover:bg-slot-bg hover:text-slot-text"
+					>
+						ออกจากห้อง
+					</button>
+				{/if}
+			</div>
+		</div>
+	</div>
+{/if}

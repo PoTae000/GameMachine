@@ -1,0 +1,138 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a0a2e"/>
+      <stop offset="50%" style="stop-color:#16082a"/>
+      <stop offset="100%" style="stop-color:#0d0518"/>
+    </linearGradient>
+    <linearGradient id="machine" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#6d28d9"/>
+      <stop offset="100%" style="stop-color:#3b0764"/>
+    </linearGradient>
+    <linearGradient id="screen" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f0520"/>
+      <stop offset="100%" style="stop-color:#1a0a35"/>
+    </linearGradient>
+    <linearGradient id="coin" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#fcd34d"/>
+      <stop offset="40%" style="stop-color:#f59e0b"/>
+      <stop offset="100%" style="stop-color:#b45309"/>
+    </linearGradient>
+    <linearGradient id="coin2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#fde68a"/>
+      <stop offset="50%" style="stop-color:#f59e0b"/>
+      <stop offset="100%" style="stop-color:#92400e"/>
+    </linearGradient>
+    <filter id="neon-purple">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feFlood flood-color="#a855f7" flood-opacity="0.6" result="color"/>
+      <feComposite in="color" in2="blur" operator="in" result="glow"/>
+      <feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="neon-blue">
+      <feGaussianBlur stdDeviation="1.5" result="blur"/>
+      <feFlood flood-color="#60a5fa" flood-opacity="0.7" result="color"/>
+      <feComposite in="color" in2="blur" operator="in" result="glow"/>
+      <feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="neon-green">
+      <feGaussianBlur stdDeviation="1.5" result="blur"/>
+      <feFlood flood-color="#34d399" flood-opacity="0.7" result="color"/>
+      <feComposite in="color" in2="blur" operator="in" result="glow"/>
+      <feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="gold-glow">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feFlood flood-color="#f59e0b" flood-opacity="0.5" result="color"/>
+      <feComposite in="color" in2="blur" operator="in" result="glow"/>
+      <feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Dark background -->
+  <rect width="128" height="128" rx="16" fill="url(#bg)"/>
+
+  <!-- Outer glow ring -->
+  <rect x="8" y="18" width="112" height="80" rx="10" fill="none" stroke="#7c3aed" stroke-width="1" opacity="0.3" filter="url(#neon-purple)"/>
+
+  <!-- Slot machine body -->
+  <rect x="14" y="22" width="100" height="76" rx="8" fill="url(#machine)" stroke="#8b5cf6" stroke-width="1.5"/>
+
+  <!-- Top bar with neon -->
+  <rect x="14" y="22" width="100" height="14" rx="8" fill="#4c1d95"/>
+  <rect x="14" y="30" width="100" height="6" fill="#4c1d95"/>
+  <text x="64" y="33" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="9" fill="#e9d5ff" filter="url(#neon-purple)">JACKPOT</text>
+
+  <!-- Screen area with deep dark -->
+  <rect x="22" y="40" width="84" height="34" rx="4" fill="url(#screen)" stroke="#6d28d9" stroke-width="1"/>
+
+  <!-- Neon line top of screen -->
+  <line x1="22" y1="40" x2="106" y2="40" stroke="#818cf8" stroke-width="1" filter="url(#neon-blue)" opacity="0.8"/>
+  <!-- Neon line bottom of screen -->
+  <line x1="22" y1="74" x2="106" y2="74" stroke="#34d399" stroke-width="1" filter="url(#neon-green)" opacity="0.8"/>
+
+  <!-- Reel dividers -->
+  <line x1="50" y1="41" x2="50" y2="73" stroke="#4c1d95" stroke-width="1.5"/>
+  <line x1="78" y1="41" x2="78" y2="73" stroke="#4c1d95" stroke-width="1.5"/>
+
+  <!-- Reel 1: Heart -->
+  <text x="36" y="62" text-anchor="middle" font-size="18" fill="#f43f5e" filter="url(#neon-purple)">&#9829;</text>
+
+  <!-- Reel 2: Seven -->
+  <text x="64" y="63" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="22" fill="#fbbf24" filter="url(#gold-glow)">7</text>
+
+  <!-- Reel 3: Diamond -->
+  <text x="92" y="62" text-anchor="middle" font-size="18" fill="#60a5fa" filter="url(#neon-blue)">&#9830;</text>
+
+  <!-- Win line arrow left -->
+  <polygon points="18,57 22,54 22,60" fill="#f59e0b" opacity="0.8"/>
+  <!-- Win line -->
+  <line x1="22" y1="57" x2="106" y2="57" stroke="#f59e0b" stroke-width="0.8" stroke-dasharray="3,2" opacity="0.5"/>
+  <!-- Win line arrow right -->
+  <polygon points="110,57 106,54 106,60" fill="#f59e0b" opacity="0.8"/>
+
+  <!-- Bottom panel -->
+  <rect x="22" y="78" width="84" height="14" rx="3" fill="#2e1065"/>
+
+  <!-- Spin button -->
+  <rect x="46" y="80" width="36" height="10" rx="5" fill="#dc2626" stroke="#991b1b" stroke-width="0.8"/>
+  <text x="64" y="88" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="6" fill="#fef2f2">SPIN</text>
+
+  <!-- Base -->
+  <rect x="10" y="96" width="108" height="8" rx="4" fill="#3b0764" stroke="#6d28d9" stroke-width="0.5"/>
+
+  <!-- Flying coins - top left -->
+  <ellipse cx="12" cy="14" rx="9" ry="9" fill="url(#coin)" stroke="#92400e" stroke-width="1" filter="url(#gold-glow)" transform="rotate(-15,12,14)"/>
+  <text x="12" y="17.5" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="10" fill="#92400e" transform="rotate(-15,12,14)">$</text>
+
+  <!-- Coin top right -->
+  <ellipse cx="116" cy="10" rx="8" ry="8" fill="url(#coin2)" stroke="#92400e" stroke-width="1" filter="url(#gold-glow)" transform="rotate(20,116,10)"/>
+  <text x="116" y="13.5" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="9" fill="#78350f" transform="rotate(20,116,10)">$</text>
+
+  <!-- Coin bottom left -->
+  <ellipse cx="8" cy="108" rx="7" ry="7" fill="url(#coin)" stroke="#92400e" stroke-width="0.8" filter="url(#gold-glow)" transform="rotate(10,8,108)"/>
+  <text x="8" y="111" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="8" fill="#92400e" transform="rotate(10,8,108)">$</text>
+
+  <!-- Coin bottom right -->
+  <ellipse cx="120" cy="112" rx="7" ry="7" fill="url(#coin2)" stroke="#92400e" stroke-width="0.8" filter="url(#gold-glow)" transform="rotate(-25,120,112)"/>
+  <text x="120" y="115" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="8" fill="#78350f" transform="rotate(-25,120,112)">$</text>
+
+  <!-- Small coin mid-left -->
+  <ellipse cx="6" cy="58" rx="5" ry="5" fill="url(#coin)" stroke="#92400e" stroke-width="0.6" opacity="0.7"/>
+  <text x="6" y="60.5" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="6" fill="#92400e" opacity="0.7">$</text>
+
+  <!-- Small coin mid-right -->
+  <ellipse cx="122" cy="62" rx="5" ry="5" fill="url(#coin2)" stroke="#92400e" stroke-width="0.6" opacity="0.7"/>
+  <text x="122" y="64.5" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="6" fill="#78350f" opacity="0.7">$</text>
+
+  <!-- Sparkle dots -->
+  <circle cx="28" cy="10" r="1.2" fill="#fde68a" opacity="0.8"/>
+  <circle cx="100" cy="6" r="1" fill="#fde68a" opacity="0.6"/>
+  <circle cx="20" cy="120" r="1" fill="#fde68a" opacity="0.7"/>
+  <circle cx="108" cy="122" r="1.2" fill="#fde68a" opacity="0.8"/>
+  <circle cx="64" cy="4" r="1.5" fill="#c084fc" opacity="0.6"/>
+  <circle cx="4" cy="40" r="1" fill="#c084fc" opacity="0.5"/>
+  <circle cx="124" cy="38" r="1" fill="#c084fc" opacity="0.5"/>
+  <circle cx="52" cy="122" r="1" fill="#a855f7" opacity="0.4"/>
+  <circle cx="80" cy="124" r="1" fill="#fbbf24" opacity="0.5"/>
+</svg>

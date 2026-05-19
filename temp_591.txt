@@ -1,0 +1,838 @@
+<script lang="ts">
+	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
+	import { onMount } from 'svelte';
+	import { currentUser, loadCredit } from '$lib/store.svelte';
+	import { renderCard, renderCardBack } from '$lib/cardSvg';
+
+	let room: any = $state(null);
+	let error = $state('');
+	let loading = $state(true);
+	let polling = $state(true);
+	let betAmount = $state(50);
+	let betChoice = $state('');
+	let actionLoading = $state(false);
+	let copied = $state(false);
+	let showCloseConfirm = $state(false);
+
+	// Anti-flicker: track when cards actually change
+	let lastRound = $state(0);
+	let lastPhase = $state('');
+	let cardsJustDealt = $state(false);
+
+	let code = $derived($page.params.code);
+	let isBotRoom = $derived(!!room?.botDealer);
+	let isHost = $derived(!isBotRoom && room?.hostId === currentUser.value?.id);
+	let myPlayer = $derived(room?.players?.find((p: any) => p.userId === currentUser.value?.id));
+	let otherPlayers = $derived(
+		isBotRoom
+			? (room?.players ?? [])
+			: (room?.players?.filter((p: any) => p.userId !== room?.hostId) ?? [])
+	);
+	let allPlayersReady = $derived(otherPlayers.length > 0 && otherPlayers.every((p: any) => p.ready));
+	let needsBetChoice = $derived(room?.game === 'baccarat' || room?.game === 'dragontiger' || room?.game === 'hilo');
+
+	// Use semicircular arc layout when 2+ player hands
+	let useArcLayout = $derived(otherPlayers.length >= 2);
+
+	let bjAllStood = $derived(
+		room?.game === 'blackjack' && room?.phase === 'playing' &&
+		otherPlayers.every((p: any) => p.stood)
+	);
+	let myBjHand = $derived(myPlayer?.hand ?? []);
+	let myBjValue = $derived(calcHandValue(myBjHand));
+
+	let isPlayer = $derived(isBotRoom || !isHost);
+
+	function calcHandValue(hand: any[]): number {
+		if (!hand || hand.length === 0) return 0;
+		let total = 0, aces = 0;
+		for (const c of hand) {
+			if (!c) continue;
+			if (c.rank === 1) { aces++; total += 11; }
+			else if (c.rank >= 10) total += 10;
+			else total += c.rank;
+		}
+		while (total > 21 && aces > 0) { total -= 10; aces--; }
+		return total;
+	}
+
+	function baccaratPoints(hand: any[]): number {
+		if (!hand) return 0;
+		return hand.reduce((s: number, c: any) => s + (c.rank >= 10 ? 0 : c.rank), 0) % 10;
+	}
+
+	// Calculate vertical offset for semicircular arc seating
+	function seatOffset(index: number, total: number): number {
+		if (total <= 1) return 0;
+		const normalized = (index / (total - 1)) * 2 - 1; // -1 to 1
+		return Math.round((1 - normalized * normalized) * 24); // 24px at center, 0 at edges
+	}
+
+	let pollTimer: ReturnType<typeof setInterval>;
+
+	onMount(() => {
+		fetchRoom();
+		pollTimer = setInterval(() => {
+			if (polling) fetchRoom();
+		}, 1500);
+		return () => clearInterval(pollTimer);
+	});
+
+	async function fetchRoom() {
+		try {
+			const res = await fetch(`/api/room/${code}`);
+			const data = await res.json();
+			if (!res.ok) {
+				if (data.closed) {
+					error = 'ห้องถูกปิดแล้ว';
+					polling = false;
+				} else {
+					error = data.error || 'โหลดข้อมูลห้องไม่ได้';
+				}
+				room = null;
+				loading = false;
+				return;
+			}
+			const newRoom = data.room;
+
+			if (newRoom.round !== lastRound || (newRoom.phase !== lastPhase && (newRoom.phase === 'playing' || newRoom.phase === 'result'))) {
+				if (newRoom.gameState && lastPhase === 'betting') {
+					cardsJustDealt = true;
+					setTimeout(() => { cardsJustDealt = false; }, 800);
+				}
+			}
+			lastRound = newRoom.round;
+			lastPhase = newRoom.phase;
+
+			room = newRoom;
+			error = '';
+		} catch {
+			error = 'เชื่อมต่อไม่ได้';
+		}
+		loading = false;
+	}
+
+	async function apiPost(endpoint: string, body: any = {}) {
+		actionLoading = true;
+		try {
+			const res = await fetch(`/api/room/${code}/${endpoint}`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(body)
+			});
+			const data = await res.json();
+			if (!res.ok) {
+				error = data.error || 'เกิดข้อผิดพลาด';
+			} else {
+				if (data.room) {
+					const newRoom = data.room;
+					if (newRoom.round !== lastRound || newRoom.phase !== lastPhase) {
+						if (newRoom.gameState && (newRoom.phase === 'playing' || newRoom.phase === 'result')) {
+							cardsJustDealt = true;
+							setTimeout(() => { cardsJustDealt = false; }, 800);
+						}
+					}
+					lastRound = newRoom.round;
+					lastPhase = newRoom.phase;
+					room = newRoom;
+				}
+				error = '';
+			}
+			loadCredit();
+		} catch {
+			error = 'เชื่อมต่อไม่ได้';
+		}
+		actionLoading = false;
+	}
+
+	function startRound() { apiPost('next'); }
+	function deal() { apiPost('deal'); }
+	function doBet() { apiPost('bet', { bet: betAmount, betChoice: needsBetChoice ? betChoice : undefined }); }
+	function hit() { apiPost('action', { action: 'hit' }); }
+	function stand() { apiPost('action', { action: 'stand' }); }
+	function revealDealer() { apiPost('action', { action: 'reveal' }); }
+
+	async function leaveRoom() {
+		await apiPost('leave');
+		goto('/room');
+	}
+
+	async function closeRoomAction() {
+		await fetch(`/api/room/${code}/close`, { method: 'POST' });
+		goto('/room');
+	}
+
+	function copyCode() {
+		if (code) navigator.clipboard.writeText(code);
+		copied = true;
+		setTimeout(() => { copied = false; }, 1500);
+	}
+
+	function resultLabel(r: string | undefined): string {
+		if (r === 'win') return 'ชนะ';
+		if (r === 'lose') return 'แพ้';
+		if (r === 'push') return 'เสมอ';
+		return '';
+	}
+
+	function resultColor(r: string | undefined): string {
+		if (r === 'win') return 'text-slot-win';
+		if (r === 'lose') return 'text-slot-lose';
+		return 'text-slot-muted';
+	}
+
+	function resultBg(r: string | undefined): string {
+		if (r === 'win') return 'bg-green-500/20 text-green-300';
+		if (r === 'lose') return 'bg-red-500/20 text-red-300';
+		return 'bg-white/10 text-white/60';
+	}
+
+	function phaseLabel(phase: string): string {
+		switch (phase) {
+			case 'waiting': return 'รอผู้เล่น';
+			case 'betting': return 'วางเดิมพัน';
+			case 'dealing': return 'กำลังแจก';
+			case 'playing': return 'กำลังเล่น';
+			case 'result': return 'ผลลัพธ์';
+			default: return phase;
+		}
+	}
+
+	let dealClass = $derived(cardsJustDealt ? 'animate-deal' : '');
+</script>
+
+{#snippet cardEl(card: any, w: number, h: number)}
+	{#if card}
+		<div class="rounded-lg overflow-hidden shadow-lg {dealClass}" style="width:{w}px;height:{h}px;--deal-x:50px;--deal-y:-30px">
+			{@html renderCard(card.suit, card.display, w, h)}
+		</div>
+	{:else}
+		<div class="rounded-lg overflow-hidden shadow-lg {dealClass}" style="width:{w}px;height:{h}px;--deal-x:50px;--deal-y:-30px">
+			{@html renderCardBack(w, h)}
+		</div>
+	{/if}
+{/snippet}
+
+{#snippet cardStatic(card: any, w: number, h: number)}
+	{#if card}
+		<div class="rounded-lg overflow-hidden shadow-lg" style="width:{w}px;height:{h}px">
+			{@html renderCard(card.suit, card.display, w, h)}
+		</div>
+	{:else}
+		<div class="rounded-lg overflow-hidden shadow-lg" style="width:{w}px;height:{h}px">
+			{@html renderCardBack(w, h)}
+		</div>
+	{/if}
+{/snippet}
+
+<!-- Player seat snippet for arc layout -->
+{#snippet playerSeat(player: any, index: number, total: number, gameType: string)}
+	<div class="arc-seat" style="margin-top: {seatOffset(index, total)}px">
+		<div class="arc-seat-inner {player.userId === currentUser.value?.id ? 'arc-seat-me' : ''}">
+			<!-- Player name -->
+			<p class="arc-seat-name">
+				{player.username}
+				{#if player.result}
+					<span class="ml-0.5 {player.result === 'win' ? 'text-green-400' : player.result === 'lose' ? 'text-red-400' : 'text-white/50'}">
+						{resultLabel(player.result)}
+					</span>
+				{/if}
+			</p>
+
+			<!-- Cards -->
+			{#if gameType === 'blackjack' && player.hand}
+				<div class="flex justify-center gap-0.5 flex-wrap">
+					{#each player.hand as card}
+						{@render cardStatic(card, 36, 52)}
+					{/each}
+				</div>
+				<p class="arc-seat-value">{calcHandValue(player.hand.filter((c: any) => c))}
+					{#if player.stood && !player.result}<span class="text-white/30 ml-0.5">S</span>{/if}
+				</p>
+			{:else if gameType === 'pokdeng' && player.hand}
+				<div class="flex justify-center gap-0.5">
+					{#each player.hand as card}
+						{@render cardStatic(card, 36, 52)}
+					{/each}
+				</div>
+				<p class="arc-seat-value">{baccaratPoints(player.hand)} แต้ม</p>
+			{/if}
+
+			<!-- Bet & payout -->
+			<p class="arc-seat-bet">
+				&#3647;{player.bet}
+				{#if player.payout !== undefined && player.result}
+					<span class="{player.payout > player.bet ? 'text-green-400' : player.payout < player.bet ? 'text-red-400' : 'text-white/40'}">
+						({player.payout > player.bet ? '+' : ''}{player.payout - player.bet})
+					</span>
+				{/if}
+			</p>
+		</div>
+	</div>
+{/snippet}
+
+<svelte:head>
+	<title>ห้อง {code} - BUNG TAE DUBAI</title>
+</svelte:head>
+
+<!-- Close room confirmation -->
+{#if showCloseConfirm}
+	<div class="animate-fade-in fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+		<div class="w-full max-w-xs rounded-2xl border border-slot-border bg-slot-surface p-5 text-center shadow-xl">
+			<p class="mb-1 text-sm font-bold text-slot-text">{isHost ? 'ปิดห้องนี้?' : 'ออกจากห้อง?'}</p>
+			<p class="mb-4 text-[11px] text-slot-muted">{isHost ? 'ผู้เล่นทุกคนจะถูกเตะออก' : 'คุณจะออกจากห้องนี้'}</p>
+			<div class="flex gap-2">
+				<button onclick={() => (showCloseConfirm = false)} class="flex-1 cursor-pointer rounded-xl border border-slot-border px-4 py-2 text-xs font-medium text-slot-muted transition hover:bg-slot-bg">ยกเลิก</button>
+				<button onclick={() => { showCloseConfirm = false; isHost ? closeRoomAction() : leaveRoom(); }} class="flex-1 cursor-pointer rounded-xl bg-slot-lose px-4 py-2 text-xs font-bold text-white transition hover:brightness-110">ยืนยัน</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+{#if loading}
+	<div class="flex min-h-[40vh] items-center justify-center">
+		<p class="text-sm text-slot-muted animate-pulse">กำลังโหลดห้อง...</p>
+	</div>
+{:else if !room}
+	<div class="mx-auto max-w-md space-y-4 text-center">
+		<p class="text-lg font-bold text-slot-lose">{error || 'ไม่พบห้อง'}</p>
+		<button onclick={() => goto('/room')} class="cursor-pointer rounded-xl bg-slot-accent px-6 py-2 text-sm font-bold text-white transition hover:brightness-110">
+			กลับหน้าห้อง
+		</button>
+	</div>
+{:else}
+	<div class="mx-auto max-w-2xl space-y-3">
+		<!-- Header bar -->
+		<div class="flex items-center justify-between rounded-2xl border border-slot-border bg-slot-surface px-4 py-3 casino-shadow">
+			<div class="flex items-center gap-2.5">
+				<button onclick={copyCode} class="cursor-pointer rounded-lg bg-slot-accent px-3 py-1.5 text-xs font-bold tracking-[0.2em] text-white transition hover:brightness-110" title="คัดลอกรหัส">
+					{copied ? '✓' : code}
+				</button>
+				<div>
+					<span class="text-sm font-bold text-slot-text">{room.gameName}</span>
+					<div class="flex items-center gap-1.5 text-[10px] text-slot-muted">
+						<span>{room.players.length} คน</span>
+						<span class="inline-block h-1 w-1 rounded-full bg-slot-muted/40"></span>
+						<span>รอบ {room.round}</span>
+						{#if isBotRoom}
+							<span class="inline-block h-1 w-1 rounded-full bg-slot-muted/40"></span>
+							<span class="text-slot-accent">&#129302; บอท</span>
+						{/if}
+					</div>
+				</div>
+			</div>
+			<div class="flex items-center gap-2">
+				{#if isBotRoom}
+					<span class="text-[9px] font-bold text-slot-accent">&#129302;</span>
+				{:else if isHost}
+					<span class="text-[9px] font-bold text-slot-accent">&#128081;</span>
+				{/if}
+				<span class="rounded-full px-2.5 py-1 text-[10px] font-bold
+					{room.phase === 'waiting' ? 'bg-slot-muted/10 text-slot-muted' : ''}
+					{room.phase === 'betting' ? 'bg-slot-accent/10 text-slot-accent' : ''}
+					{room.phase === 'playing' || room.phase === 'dealing' ? 'bg-yellow-500/10 text-yellow-500' : ''}
+					{room.phase === 'result' ? 'bg-slot-win/10 text-slot-win' : ''}">
+					{phaseLabel(room.phase)}
+				</span>
+			</div>
+		</div>
+
+		<!-- Error -->
+		{#if error}
+			<div class="rounded-xl bg-slot-lose/10 border border-slot-lose/30 px-3 py-2 text-center text-xs font-bold text-slot-lose">
+				{error}
+			</div>
+		{/if}
+
+		<!-- Game Table -->
+		{#if room.phase !== 'waiting'}
+			<div class="semi-table {useArcLayout ? 'semi-table-arc' : ''}">
+				<div class="semi-table-felt">
+					<!-- Decorative table edge -->
+					<div class="semi-table-border"></div>
+
+					<!-- ========== BLACKJACK ========== -->
+					{#if room.game === 'blackjack' && room.gameState}
+						<!-- Dealer at top center -->
+						<div class="text-center pb-3 sm:pb-4">
+							<p class="table-label mb-2">{isBotRoom ? '&#129302; เจ้ามือ' : 'เจ้ามือ'}
+								{room.gameState.dealerRevealed ? ` (${calcHandValue(room.gameState.dealerHand)})` : ''}
+							</p>
+							<div class="flex justify-center gap-2 sm:gap-3">
+								{#each room.gameState.dealerHand as card}
+									{@render cardEl(card, useArcLayout ? 48 : 56, useArcLayout ? 68 : 80)}
+								{/each}
+							</div>
+						</div>
+
+						<!-- Divider -->
+						<div class="semi-table-divider"></div>
+
+						<!-- Player seats -->
+						{#if useArcLayout}
+							<!-- Arc layout for 2+ players -->
+							<div class="flex justify-around items-start pt-3 px-1 sm:px-3 gap-1">
+								{#each otherPlayers as player, i}
+									{#if player.hand}
+										{@render playerSeat(player, i, otherPlayers.length, 'blackjack')}
+									{/if}
+								{/each}
+							</div>
+						{:else}
+							<!-- Stack layout for 1 player -->
+							<div class="space-y-2.5 pt-3">
+								{#each otherPlayers as player}
+									{#if player.hand}
+										<div class="rounded-xl bg-black/20 px-3 py-2.5 backdrop-blur-sm">
+											<div class="mb-2 flex items-center justify-between">
+												<span class="text-xs font-bold text-white/80">{player.username}
+													<span class="ml-1 text-white/35 font-normal">&#3647;{player.bet}</span>
+												</span>
+												<div class="flex items-center gap-1.5">
+													<span class="text-xs font-bold text-white/90">{calcHandValue(player.hand.filter((c: any) => c))}</span>
+													{#if player.stood && !player.result}<span class="text-[9px] text-white/30">หยุด</span>{/if}
+													{#if player.result}
+														<span class="rounded-full px-2 py-0.5 text-[10px] font-bold {resultBg(player.result)}">{resultLabel(player.result)}</span>
+													{/if}
+												</div>
+											</div>
+											<div class="flex gap-1.5">
+												{#each player.hand as card}
+													{@render cardStatic(card, 48, 68)}
+												{/each}
+											</div>
+										</div>
+									{/if}
+								{/each}
+							</div>
+						{/if}
+
+					<!-- ========== BACCARAT ========== -->
+					{:else if room.game === 'baccarat' && room.gameState}
+						<div class="grid grid-cols-2 gap-4 pb-3">
+							<div class="text-center">
+								<p class="mb-2 text-[10px] font-bold uppercase tracking-wider text-blue-300/80">Player</p>
+								<div class="flex justify-center gap-2">
+									{#each room.gameState.playerHand as card}
+										{@render cardEl(card, 52, 74)}
+									{/each}
+								</div>
+								<p class="mt-2 text-2xl font-black text-white/90">{baccaratPoints(room.gameState.playerHand)}</p>
+							</div>
+							<div class="text-center">
+								<p class="mb-2 text-[10px] font-bold uppercase tracking-wider text-red-300/80">Banker</p>
+								<div class="flex justify-center gap-2">
+									{#each room.gameState.bankerHand as card}
+										{@render cardEl(card, 52, 74)}
+									{/each}
+								</div>
+								<p class="mt-2 text-2xl font-black text-white/90">{baccaratPoints(room.gameState.bankerHand)}</p>
+							</div>
+						</div>
+						{#if room.phase === 'result'}
+							<p class="pb-2 text-center text-sm font-bold
+								{room.gameState.result === 'player' ? 'text-blue-300' : room.gameState.result === 'banker' ? 'text-red-300' : 'text-yellow-300'}">
+								{room.gameState.result === 'player' ? 'Player ชนะ!' : room.gameState.result === 'banker' ? 'Banker ชนะ!' : 'เสมอ (Tie)'}
+							</p>
+						{/if}
+						<!-- Player bets in arc -->
+						{#if useArcLayout && room.phase === 'result'}
+							<div class="semi-table-divider"></div>
+							<div class="flex justify-around pt-3 px-2">
+								{#each otherPlayers as player, i}
+									<div class="arc-seat" style="margin-top: {seatOffset(i, otherPlayers.length)}px">
+										<div class="arc-seat-inner {player.userId === currentUser.value?.id ? 'arc-seat-me' : ''}">
+											<p class="arc-seat-name">{player.username}</p>
+											<p class="arc-seat-bet">
+												{player.betChoice === 'player' ? '&#128309;P' : player.betChoice === 'banker' ? '&#128308;B' : '&#128993;T'} &#3647;{player.bet}
+											</p>
+											{#if player.result}
+												<span class="text-[9px] font-bold {player.result === 'win' ? 'text-green-400' : player.result === 'lose' ? 'text-red-400' : 'text-white/40'}">
+													{resultLabel(player.result)} ({player.payout !== undefined ? (player.payout > player.bet ? '+' : '') + (player.payout - player.bet) : ''})
+												</span>
+											{/if}
+										</div>
+									</div>
+								{/each}
+							</div>
+						{/if}
+
+					<!-- ========== DRAGON TIGER ========== -->
+					{:else if room.game === 'dragontiger' && room.gameState}
+						<div class="flex items-center justify-center gap-6 sm:gap-8 pb-3">
+							<div class="text-center">
+								<p class="mb-2 text-[10px] font-bold uppercase tracking-wider text-blue-300/80">Dragon</p>
+								{@render cardEl(room.gameState.dragon, 72, 102)}
+							</div>
+							<span class="text-2xl font-black text-white/20">VS</span>
+							<div class="text-center">
+								<p class="mb-2 text-[10px] font-bold uppercase tracking-wider text-red-300/80">Tiger</p>
+								{@render cardEl(room.gameState.tiger, 72, 102)}
+							</div>
+						</div>
+						{#if room.phase === 'result'}
+							<p class="pb-2 text-center text-sm font-bold
+								{room.gameState.result === 'dragon' ? 'text-blue-300' : room.gameState.result === 'tiger' ? 'text-red-300' : 'text-yellow-300'}">
+								{room.gameState.result === 'dragon' ? 'Dragon ชนะ!' : room.gameState.result === 'tiger' ? 'Tiger ชนะ!' : 'เสมอ (Tie)'}
+							</p>
+						{/if}
+						{#if useArcLayout && room.phase === 'result'}
+							<div class="semi-table-divider"></div>
+							<div class="flex justify-around pt-3 px-2">
+								{#each otherPlayers as player, i}
+									<div class="arc-seat" style="margin-top: {seatOffset(i, otherPlayers.length)}px">
+										<div class="arc-seat-inner {player.userId === currentUser.value?.id ? 'arc-seat-me' : ''}">
+											<p class="arc-seat-name">{player.username}</p>
+											<p class="arc-seat-bet">
+												{player.betChoice === 'dragon' ? '&#128009;' : player.betChoice === 'tiger' ? '&#128005;' : '&#128993;'} &#3647;{player.bet}
+											</p>
+											{#if player.result}
+												<span class="text-[9px] font-bold {player.result === 'win' ? 'text-green-400' : player.result === 'lose' ? 'text-red-400' : 'text-white/40'}">
+													{resultLabel(player.result)} ({player.payout !== undefined ? (player.payout > player.bet ? '+' : '') + (player.payout - player.bet) : ''})
+												</span>
+											{/if}
+										</div>
+									</div>
+								{/each}
+							</div>
+						{/if}
+
+					<!-- ========== HI-LO ========== -->
+					{:else if room.game === 'hilo' && room.gameState}
+						<div class="flex items-center justify-center gap-5 sm:gap-8 pb-3">
+							<div class="text-center">
+								<p class="mb-2 table-label">ไพ่ตั้ง</p>
+								{@render cardEl(room.gameState.baseCard, 72, 102)}
+							</div>
+							<span class="text-3xl text-white/20">&#8594;</span>
+							<div class="text-center">
+								<p class="mb-2 table-label">ไพ่จั่ว</p>
+								{@render cardEl(room.gameState.nextCard, 72, 102)}
+							</div>
+						</div>
+						{#if room.phase === 'result'}
+							<p class="pb-2 text-center text-sm font-bold text-white/80">
+								{room.gameState.nextCard.rank > room.gameState.baseCard.rank ? 'สูง (High)' : room.gameState.nextCard.rank < room.gameState.baseCard.rank ? 'ต่ำ (Low)' : 'เท่ากัน (Tie)'}
+							</p>
+						{/if}
+						{#if useArcLayout && room.phase === 'result'}
+							<div class="semi-table-divider"></div>
+							<div class="flex justify-around pt-3 px-2">
+								{#each otherPlayers as player, i}
+									<div class="arc-seat" style="margin-top: {seatOffset(i, otherPlayers.length)}px">
+										<div class="arc-seat-inner {player.userId === currentUser.value?.id ? 'arc-seat-me' : ''}">
+											<p class="arc-seat-name">{player.username}</p>
+											<p class="arc-seat-bet">
+												{player.betChoice === 'high' ? '&#9650;' : '&#9660;'} &#3647;{player.bet}
+											</p>
+											{#if player.result}
+												<span class="text-[9px] font-bold {player.result === 'win' ? 'text-green-400' : player.result === 'lose' ? 'text-red-400' : 'text-white/40'}">
+													{resultLabel(player.result)} ({player.payout !== undefined ? (player.payout > player.bet ? '+' : '') + (player.payout - player.bet) : ''})
+												</span>
+											{/if}
+										</div>
+									</div>
+								{/each}
+							</div>
+						{/if}
+
+					<!-- ========== POKDENG ========== -->
+					{:else if room.game === 'pokdeng' && room.gameState}
+						<!-- Dealer at top center -->
+						<div class="text-center pb-3 sm:pb-4">
+							<p class="table-label mb-2">{isBotRoom ? '&#129302; เจ้ามือ' : 'เจ้ามือ'} ({baccaratPoints(room.gameState.dealerHand)} แต้ม)</p>
+							<div class="flex justify-center gap-2">
+								{#each room.gameState.dealerHand as card}
+									{@render cardEl(card, useArcLayout ? 48 : 56, useArcLayout ? 68 : 80)}
+								{/each}
+							</div>
+						</div>
+
+						<div class="semi-table-divider"></div>
+
+						{#if useArcLayout}
+							<div class="flex justify-around items-start pt-3 px-1 sm:px-3 gap-1">
+								{#each otherPlayers as player, i}
+									{#if player.hand}
+										{@render playerSeat(player, i, otherPlayers.length, 'pokdeng')}
+									{/if}
+								{/each}
+							</div>
+						{:else}
+							<div class="space-y-2 pt-3">
+								{#each otherPlayers as player}
+									{#if player.hand}
+										<div class="rounded-xl bg-black/20 px-3 py-2.5 backdrop-blur-sm">
+											<div class="mb-1.5 flex items-center justify-between">
+												<span class="text-xs font-bold text-white/80">{player.username}
+													<span class="text-white/35 font-normal">&#3647;{player.bet}</span>
+												</span>
+												<div class="flex items-center gap-1.5">
+													<span class="text-xs text-white/60">{baccaratPoints(player.hand)} แต้ม</span>
+													{#if player.result}
+														<span class="rounded-full px-2 py-0.5 text-[10px] font-bold {resultBg(player.result)}">{resultLabel(player.result)}</span>
+													{/if}
+												</div>
+											</div>
+											<div class="flex gap-1.5">
+												{#each player.hand as card}
+													{@render cardStatic(card, 48, 68)}
+												{/each}
+											</div>
+										</div>
+									{/if}
+								{/each}
+							</div>
+						{/if}
+					{/if}
+				</div>
+			</div>
+
+			<!-- Results summary -->
+			{#if room.phase === 'result' && !useArcLayout}
+				<div class="rounded-2xl border border-slot-border bg-slot-surface p-3.5 casino-shadow">
+					<div class="mb-2 flex items-center justify-between">
+						<p class="text-[10px] font-bold uppercase tracking-wider text-slot-muted">สรุปรอบที่ {room.round}</p>
+						{#if isBotRoom}
+							<p class="text-[10px] text-slot-accent animate-pulse">เริ่มรอบใหม่อัตโนมัติ...</p>
+						{/if}
+					</div>
+					{#each otherPlayers as player}
+						<div class="flex items-center justify-between py-1.5 border-b border-slot-border/30 last:border-0 text-xs">
+							<span class="font-medium text-slot-text">{player.username}</span>
+							<div class="flex items-center gap-2">
+								<span class="text-slot-muted">&#3647;{player.bet}</span>
+								<span class="font-bold {resultColor(player.result)}">
+									{resultLabel(player.result)}
+									{#if player.payout !== undefined}
+										<span class="text-[10px] opacity-70">({player.payout > player.bet ? '+' : ''}{player.payout - player.bet})</span>
+									{/if}
+								</span>
+							</div>
+						</div>
+					{/each}
+				</div>
+			{/if}
+
+			{#if room.phase === 'result' && isBotRoom}
+				<p class="text-center text-[10px] text-slot-accent animate-pulse">เริ่มรอบใหม่อัตโนมัติ...</p>
+			{/if}
+		{/if}
+
+		<!-- Controls -->
+		<div class="space-y-2">
+			{#if isHost}
+				{#if room.phase === 'waiting' || room.phase === 'result'}
+					<button onclick={startRound} disabled={actionLoading || otherPlayers.length === 0}
+						class="w-full cursor-pointer rounded-xl bg-slot-accent px-4 py-3 text-sm font-bold text-white transition hover:brightness-110 active:scale-[0.98] disabled:opacity-40 casino-shadow">
+						{room.phase === 'waiting' ? 'เริ่มรอบแรก' : 'เริ่มรอบใหม่'}
+					</button>
+				{/if}
+				{#if room.phase === 'betting'}
+					<button onclick={deal} disabled={actionLoading || !allPlayersReady}
+						class="w-full cursor-pointer rounded-xl bg-slot-win px-4 py-3 text-sm font-bold text-white transition hover:brightness-110 active:scale-[0.98] disabled:opacity-40 casino-shadow">
+						{allPlayersReady ? '&#127139; แจกไพ่' : 'รอผู้เล่นวางเดิมพัน...'}
+					</button>
+				{/if}
+				{#if room.phase === 'playing' && room.game === 'blackjack'}
+					<button onclick={revealDealer} disabled={actionLoading}
+						class="w-full cursor-pointer rounded-xl bg-slot-accent px-4 py-3 text-sm font-bold text-white transition hover:brightness-110 active:scale-[0.98] disabled:opacity-40 casino-shadow">
+						{bjAllStood ? 'เปิดไพ่เจ้ามือ' : 'รอผู้เล่น... (หรือบังคับเปิด)'}
+					</button>
+				{/if}
+			{/if}
+
+			{#if isPlayer}
+				{#if room.phase === 'betting' && !myPlayer?.ready}
+					<div class="rounded-2xl border border-slot-border bg-slot-surface p-4 space-y-3 casino-shadow">
+						{#if room.game === 'baccarat'}
+							<p class="text-[10px] text-slot-muted font-bold uppercase tracking-wider">เลือกฝั่ง</p>
+							<div class="grid grid-cols-3 gap-2">
+								<button onclick={() => (betChoice = 'player')} class="cursor-pointer rounded-xl border-2 px-3 py-3 text-xs font-bold transition {betChoice === 'player' ? 'border-blue-500 bg-blue-500/10 text-blue-400 shadow-sm' : 'border-slot-border text-slot-text hover:border-blue-400/40'}">ผู้เล่น<br/><span class="text-[9px] opacity-60">x2</span></button>
+								<button onclick={() => (betChoice = 'banker')} class="cursor-pointer rounded-xl border-2 px-3 py-3 text-xs font-bold transition {betChoice === 'banker' ? 'border-red-500 bg-red-500/10 text-red-400 shadow-sm' : 'border-slot-border text-slot-text hover:border-red-400/40'}">เจ้ามือ<br/><span class="text-[9px] opacity-60">x1.95</span></button>
+								<button onclick={() => (betChoice = 'tie')} class="cursor-pointer rounded-xl border-2 px-3 py-3 text-xs font-bold transition {betChoice === 'tie' ? 'border-yellow-500 bg-yellow-500/10 text-yellow-400 shadow-sm' : 'border-slot-border text-slot-text hover:border-yellow-400/40'}">เสมอ<br/><span class="text-[9px] opacity-60">x8</span></button>
+							</div>
+						{:else if room.game === 'dragontiger'}
+							<p class="text-[10px] text-slot-muted font-bold uppercase tracking-wider">เลือกฝั่ง</p>
+							<div class="grid grid-cols-3 gap-2">
+								<button onclick={() => (betChoice = 'dragon')} class="cursor-pointer rounded-xl border-2 px-3 py-3 text-xs font-bold transition {betChoice === 'dragon' ? 'border-blue-500 bg-blue-500/10 text-blue-400 shadow-sm' : 'border-slot-border text-slot-text hover:border-blue-400/40'}">มังกร<br/><span class="text-[9px] opacity-60">x2</span></button>
+								<button onclick={() => (betChoice = 'tie')} class="cursor-pointer rounded-xl border-2 px-3 py-3 text-xs font-bold transition {betChoice === 'tie' ? 'border-yellow-500 bg-yellow-500/10 text-yellow-400 shadow-sm' : 'border-slot-border text-slot-text hover:border-yellow-400/40'}">เสมอ<br/><span class="text-[9px] opacity-60">x8</span></button>
+								<button onclick={() => (betChoice = 'tiger')} class="cursor-pointer rounded-xl border-2 px-3 py-3 text-xs font-bold transition {betChoice === 'tiger' ? 'border-red-500 bg-red-500/10 text-red-400 shadow-sm' : 'border-slot-border text-slot-text hover:border-red-400/40'}">เสือ<br/><span class="text-[9px] opacity-60">x2</span></button>
+							</div>
+						{:else if room.game === 'hilo'}
+							<p class="text-[10px] text-slot-muted font-bold uppercase tracking-wider">ทาย</p>
+							<div class="grid grid-cols-2 gap-2">
+								<button onclick={() => (betChoice = 'high')} class="cursor-pointer rounded-xl border-2 px-3 py-3 text-sm font-bold transition {betChoice === 'high' ? 'border-slot-win bg-slot-win/10 text-slot-win shadow-sm' : 'border-slot-border text-slot-text hover:border-slot-win/40'}">สูง (High)</button>
+								<button onclick={() => (betChoice = 'low')} class="cursor-pointer rounded-xl border-2 px-3 py-3 text-sm font-bold transition {betChoice === 'low' ? 'border-slot-lose bg-slot-lose/10 text-slot-lose shadow-sm' : 'border-slot-border text-slot-text hover:border-slot-lose/40'}">ต่ำ (Low)</button>
+							</div>
+						{/if}
+
+						<div class="flex items-center gap-0 rounded-xl border border-slot-border bg-slot-bg overflow-hidden">
+							<button onclick={() => { betAmount = Math.max(10, betAmount - 50); }} class="cursor-pointer px-3.5 py-2.5 text-base font-bold text-slot-muted transition hover:bg-slot-border/50 hover:text-slot-text">&#8722;</button>
+							<div class="flex flex-1 flex-col items-center border-x border-slot-border px-1">
+								<span class="text-[8px] uppercase tracking-wider text-slot-muted">BET</span>
+								<input type="number" bind:value={betAmount} min="10"
+									class="w-full bg-transparent text-center text-sm font-bold tabular-nums outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+							</div>
+							<button onclick={() => { betAmount += 50; }} class="cursor-pointer px-3.5 py-2.5 text-base font-bold text-slot-muted transition hover:bg-slot-border/50 hover:text-slot-text">+</button>
+						</div>
+						<div class="flex gap-1.5">
+							{#each [10, 50, 100, 500] as amt}
+								<button onclick={() => (betAmount = amt)}
+									class="flex-1 cursor-pointer rounded-lg border py-1.5 text-[10px] font-bold transition
+										{betAmount === amt ? 'border-slot-accent bg-slot-accent/10 text-slot-accent' : 'border-slot-border text-slot-muted hover:text-slot-text'}">
+									&#3647;{amt}
+								</button>
+							{/each}
+						</div>
+						<button onclick={doBet} disabled={actionLoading || betAmount < 1 || (needsBetChoice && !betChoice)}
+							class="w-full cursor-pointer rounded-xl bg-slot-accent px-4 py-3 text-sm font-bold text-white transition hover:brightness-110 active:scale-[0.98] disabled:opacity-40">
+							วางเดิมพัน &#3647;{betAmount}
+						</button>
+					</div>
+				{:else if room.phase === 'betting' && myPlayer?.ready}
+					<div class="rounded-2xl border border-slot-win/30 bg-slot-win/5 px-4 py-3 text-center text-xs font-bold text-slot-win">
+						&#10003; วางเดิมพันแล้ว &#3647;{myPlayer.bet} — {isBotRoom ? 'รอผู้เล่นคนอื่น...' : 'รอเจ้ามือแจกไพ่'}
+					</div>
+				{/if}
+
+				{#if room.phase === 'playing' && room.game === 'blackjack' && myPlayer && !myPlayer.stood}
+					<div class="flex w-full gap-2">
+						<button onclick={hit} disabled={actionLoading}
+							class="flex-1 cursor-pointer rounded-xl bg-slot-accent px-4 py-3 text-sm font-bold text-white transition hover:brightness-110 active:scale-[0.98] disabled:opacity-40">
+							จั่วไพ่ (Hit)
+						</button>
+						<button onclick={stand} disabled={actionLoading}
+							class="flex-1 cursor-pointer rounded-xl border-2 border-slot-accent bg-transparent px-4 py-3 text-sm font-bold text-slot-accent transition hover:bg-slot-accent/10 active:scale-[0.98] disabled:opacity-40">
+							หยุด (Stand)
+						</button>
+					</div>
+					<p class="text-center text-xs text-slot-muted">แต้มของคุณ: <span class="font-bold text-slot-text">{myBjValue}</span></p>
+				{:else if room.phase === 'playing' && room.game === 'blackjack' && myPlayer?.stood}
+					<div class="rounded-xl border border-slot-border bg-slot-bg px-4 py-2.5 text-center text-xs text-slot-muted">
+						{myPlayer.result === 'lose' ? 'บัสท์! เกิน 21' : isBotRoom ? 'หยุดแล้ว — รอบอทเปิดไพ่...' : 'หยุดแล้ว — รอเจ้ามือเปิดไพ่...'}
+					</div>
+				{/if}
+
+				{#if room.phase === 'waiting'}
+					<div class="rounded-xl border border-slot-border bg-slot-bg px-4 py-3 text-center text-xs text-slot-muted animate-pulse">
+						รอเจ้ามือเริ่มรอบ...
+					</div>
+				{/if}
+			{/if}
+
+			<!-- Leave/Close -->
+			<div class="flex justify-end pt-2">
+				<button onclick={() => (showCloseConfirm = true)}
+					class="cursor-pointer rounded-lg px-3 py-1.5 text-[10px] text-slot-muted/50 transition hover:text-slot-lose hover:bg-slot-lose/5">
+					ออกจากห้อง
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<style>
+	/* ===== Semicircular Casino Table ===== */
+	.semi-table {
+		position: relative;
+		overflow: hidden;
+	}
+
+	.semi-table-felt {
+		background: radial-gradient(ellipse at 50% 30%, #1a5c2e 0%, #14472a 40%, #0d3618 100%);
+		border-radius: 16px;
+		border: 3px solid #8b6914;
+		box-shadow:
+			inset 0 0 60px rgba(0, 0, 0, 0.3),
+			inset 0 0 20px rgba(0, 0, 0, 0.1),
+			0 4px 20px rgba(0, 0, 0, 0.4);
+		padding: 1.25rem 1rem;
+		min-height: 200px;
+	}
+
+	.semi-table-arc .semi-table-felt {
+		border-radius: 16px 16px 50% 50% / 16px 16px 30% 30%;
+		padding-bottom: 2rem;
+		min-height: 260px;
+	}
+
+	.semi-table-border {
+		position: absolute;
+		inset: 6px;
+		border: 1px solid rgba(192, 148, 58, 0.25);
+		border-radius: inherit;
+		pointer-events: none;
+	}
+
+	.semi-table-divider {
+		border-top: 1px dashed rgba(255, 255, 255, 0.12);
+		margin: 0 0.5rem;
+	}
+
+	/* ===== Arc Player Seats ===== */
+	.arc-seat {
+		flex: 0 1 auto;
+		min-width: 0;
+		transition: margin-top 0.3s ease;
+	}
+
+	.arc-seat-inner {
+		background: rgba(0, 0, 0, 0.25);
+		backdrop-filter: blur(4px);
+		border-radius: 12px;
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		padding: 0.4rem 0.35rem;
+		text-align: center;
+		min-width: 70px;
+		max-width: 100px;
+		transition: border-color 0.2s, box-shadow 0.2s;
+	}
+
+	.arc-seat-me {
+		border-color: rgba(139, 92, 246, 0.4);
+		box-shadow: 0 0 12px rgba(139, 92, 246, 0.15);
+	}
+
+	.arc-seat-name {
+		font-size: 9px;
+		font-weight: 700;
+		color: rgba(255, 255, 255, 0.8);
+		margin-bottom: 4px;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.arc-seat-value {
+		font-size: 10px;
+		font-weight: 800;
+		color: rgba(255, 255, 255, 0.9);
+		margin-top: 3px;
+	}
+
+	.arc-seat-bet {
+		font-size: 9px;
+		font-weight: 600;
+		color: rgba(255, 255, 255, 0.5);
+		margin-top: 2px;
+	}
+
+	/* Responsive: slightly larger on bigger screens */
+	@media (min-width: 640px) {
+		.arc-seat-inner {
+			min-width: 85px;
+			max-width: 120px;
+			padding: 0.5rem;
+		}
+
+		.arc-seat-name {
+			font-size: 10px;
+		}
+
+		.arc-seat-value {
+			font-size: 11px;
+		}
+	}
+</style>

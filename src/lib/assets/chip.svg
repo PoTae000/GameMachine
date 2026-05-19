@@ -1,0 +1,23 @@
+<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Coin stack (back, left) -->
+  <ellipse cx="24" cy="14" rx="16" ry="6" fill="#d4a017" stroke="#b8860b" stroke-width="1"/>
+  <path d="M8 14v4c0 3.3 7.2 6 16 6s16-2.7 16-6v-4" fill="#d4a017" stroke="#b8860b" stroke-width="1"/>
+  <path d="M8 18v4c0 3.3 7.2 6 16 6s16-2.7 16-6v-4" fill="#d4a017" stroke="#b8860b" stroke-width="1"/>
+  <path d="M8 22v4c0 3.3 7.2 6 16 6s16-2.7 16-6v-4" fill="#d4a017" stroke="#b8860b" stroke-width="1"/>
+  <path d="M8 26v4c0 3.3 7.2 6 16 6s16-2.7 16-6v-4" fill="#d4a017" stroke="#b8860b" stroke-width="1"/>
+  <path d="M8 30v4c0 3.3 7.2 6 16 6s16-2.7 16-6v-4" fill="#d4a017" stroke="#b8860b" stroke-width="1"/>
+  <!-- Gap lines -->
+  <ellipse cx="24" cy="18" rx="16" ry="6" fill="none" stroke="#f5c842" stroke-width="0.8"/>
+  <ellipse cx="24" cy="22" rx="16" ry="6" fill="none" stroke="#f5c842" stroke-width="0.8"/>
+  <ellipse cx="24" cy="26" rx="16" ry="6" fill="none" stroke="#f5c842" stroke-width="0.8"/>
+  <ellipse cx="24" cy="30" rx="16" ry="6" fill="none" stroke="#f5c842" stroke-width="0.8"/>
+  <ellipse cx="24" cy="34" rx="16" ry="6" fill="none" stroke="#f5c842" stroke-width="0.8"/>
+  <!-- Top coin $ -->
+  <text x="24" y="17" text-anchor="middle" font-size="9" font-weight="bold" fill="#f5c842" stroke="none" font-family="sans-serif">$</text>
+
+  <!-- Front coin (right) -->
+  <circle cx="42" cy="40" r="16" fill="#d4a017" stroke="#b8860b" stroke-width="1.5"/>
+  <circle cx="42" cy="40" r="12" fill="#f5c842" stroke="#d4a017" stroke-width="1.5"/>
+  <circle cx="42" cy="40" r="12" fill="#d4a017"/>
+  <text x="42" y="46" text-anchor="middle" font-size="18" font-weight="bold" fill="#f5c842" stroke="none" font-family="sans-serif">$</text>
+</svg>

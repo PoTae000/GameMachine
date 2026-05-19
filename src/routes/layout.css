@@ -1,0 +1,1257 @@
+@import 'tailwindcss';
+
+@theme {
+	--font-sans: 'Kanit', sans-serif;
+	--color-slot-bg: #f5f5f5;
+	--color-slot-surface: #ffffff;
+	--color-slot-border: #e5e5e5;
+	--color-slot-accent: #6d28d9;
+	--color-slot-win: #16a34a;
+	--color-slot-lose: #dc2626;
+	--color-slot-muted: #a1a1aa;
+	--color-slot-text: #18181b;
+}
+
+:root.dark {
+	--color-slot-bg: #0f0f0f;
+	--color-slot-surface: #1a1a1a;
+	--color-slot-border: #2a2a2a;
+	--color-slot-accent: #8b5cf6;
+	--color-slot-win: #22c55e;
+	--color-slot-lose: #ef4444;
+	--color-slot-muted: #6b7280;
+	--color-slot-text: #f5f5f5;
+}
+
+/* =====================================================
+   GLOBAL SMOOTH DEFAULTS
+   ===================================================== */
+
+* {
+	-webkit-tap-highlight-color: transparent;
+}
+
+/* All interactive elements get smooth transitions by default */
+button, a, input, select, [role="button"] {
+	transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+	-webkit-tap-highlight-color: transparent;
+}
+
+/* GPU accelerate commonly animated elements */
+.reel-cell, .spin-btn, .win-cell-glow, .casino-chip {
+	will-change: transform;
+	transform: translateZ(0);
+}
+
+@keyframes fade-in {
+	from { opacity: 0; transform: translateY(6px) scale(0.98); }
+	to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Landing: symbol drops in with elastic bounce */
+@keyframes reel-land {
+	0% { transform: translateY(-60%) scale(0.85); opacity: 0; }
+	45% { transform: translateY(6%) scale(1.04); opacity: 1; }
+	65% { transform: translateY(-3%) scale(0.98); }
+	80% { transform: translateY(1.5%) scale(1.01); }
+	100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+/* Spinning: vertical scroll movement for reel effect */
+@keyframes reel-spin {
+	0%   { transform: translateY(-45%); opacity: 0.3; }
+	20%  { opacity: 0.7; }
+	50%  { transform: translateY(0); opacity: 0.7; }
+	80%  { opacity: 0.7; }
+	100% { transform: translateY(45%); opacity: 0.3; }
+}
+
+.animate-fade-in { animation: fade-in 0.3s cubic-bezier(0.23, 1, 0.32, 1); }
+.animate-reel-land { animation: reel-land 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+
+/* Spinning cell: scroll + blur while symbols cycle */
+.animate-reel-cycle {
+	animation: reel-spin 0.15s linear infinite;
+	filter: blur(1.5px);
+	opacity: 0.6;
+	will-change: transform, opacity;
+}
+
+/* Smooth backdrop for modals */
+@keyframes backdrop-in {
+	from { opacity: 0; backdrop-filter: blur(0px); }
+	to { opacity: 1; backdrop-filter: blur(4px); }
+}
+@keyframes modal-in {
+	from { opacity: 0; transform: scale(0.9) translateY(10px); }
+	to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.animate-backdrop { animation: backdrop-in 0.3s ease-out forwards; }
+.animate-modal { animation: modal-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+
+/* Smooth message bar transitions */
+@keyframes msg-in {
+	from { opacity: 0; transform: translateY(4px); max-height: 0; }
+	to { opacity: 1; transform: translateY(0); max-height: 3rem; }
+}
+@keyframes msg-pulse {
+	0% { transform: scale(1); }
+	50% { transform: scale(1.02); }
+	100% { transform: scale(1); }
+}
+.animate-msg-in { animation: msg-in 0.25s ease-out, msg-pulse 0.4s ease-out 0.25s; }
+
+/* === Suspense Animation System === */
+
+@keyframes suspense-shake {
+	0%,100% { transform: translateX(0); }
+	10% { transform: translateX(-3px) rotate(-0.5deg); }
+	30% { transform: translateX(3px) rotate(0.5deg); }
+	50% { transform: translateX(-2px); }
+	70% { transform: translateX(2px); }
+	90% { transform: translateX(-1px); }
+}
+
+@keyframes glow-pulse {
+	0%, 100% { box-shadow: 0 0 8px 2px var(--glow-color, #eab308); }
+	50% { box-shadow: 0 0 20px 6px var(--glow-color, #eab308); }
+}
+
+@keyframes pop-reveal {
+	0% { transform: scale(0); opacity: 0; }
+	60% { transform: scale(1.2); }
+	80% { transform: scale(0.95); }
+	100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes heartbeat {
+	0%,100% { transform: scale(1); }
+	15% { transform: scale(1.15); }
+	30% { transform: scale(1); }
+	45% { transform: scale(1.1); }
+}
+
+@keyframes card-flip {
+	0% { transform: perspective(800px) rotateY(180deg) scale(0.9); }
+	50% { transform: perspective(800px) rotateY(90deg) scale(1.05); }
+	100% { transform: perspective(800px) rotateY(0deg) scale(1); }
+}
+
+
+.animate-shake { animation: suspense-shake 0.4s ease-in-out; }
+.animate-glow {
+	animation: glow-pulse 1.2s ease-in-out infinite;
+}
+.animate-pop { animation: pop-reveal 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.animate-heartbeat { animation: heartbeat 1s ease-in-out infinite; }
+.animate-card-flip { animation: card-flip 0.6s ease-out; }
+
+/* === Casino Sparkle / Shimmer === */
+@keyframes shimmer {
+	0% { background-position: -200% center; }
+	100% { background-position: 200% center; }
+}
+.animate-shimmer {
+	background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.4) 50%, transparent 100%);
+	background-size: 200% 100%;
+	animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* === Floating / Levitate === */
+@keyframes float {
+	0%,100% { transform: translateY(0); }
+	50% { transform: translateY(-6px); }
+}
+.animate-float { animation: float 2.5s ease-in-out infinite; }
+
+/* === Number Count Up === */
+@keyframes count-flash {
+	0% { opacity: 1; transform: scale(1); }
+	50% { opacity: 0.7; transform: scale(1.15); }
+	100% { opacity: 1; transform: scale(1); }
+}
+.animate-count { animation: count-flash 0.15s ease-out; }
+
+/* === Explosion / Burst === */
+@keyframes burst {
+	0% { transform: scale(0); opacity: 1; }
+	50% { transform: scale(1.5); opacity: 0.6; }
+	100% { transform: scale(2.5); opacity: 0; }
+}
+.animate-burst { animation: burst 0.6s ease-out forwards; }
+
+/* === Slide in from directions (smooth spring easing) === */
+@keyframes slide-up {
+	from { transform: translateY(16px) scale(0.98); opacity: 0; }
+	to { transform: translateY(0) scale(1); opacity: 1; }
+}
+@keyframes slide-down {
+	from { transform: translateY(-16px) scale(0.98); opacity: 0; }
+	to { transform: translateY(0) scale(1); opacity: 1; }
+}
+@keyframes slide-left {
+	from { transform: translateX(-20px) scale(0.98); opacity: 0; }
+	to { transform: translateX(0) scale(1); opacity: 1; }
+}
+@keyframes slide-right {
+	from { transform: translateX(20px) scale(0.98); opacity: 0; }
+	to { transform: translateX(0) scale(1); opacity: 1; }
+}
+.animate-slide-up { animation: slide-up 0.35s cubic-bezier(0.23, 1, 0.32, 1); }
+.animate-slide-down { animation: slide-down 0.35s cubic-bezier(0.23, 1, 0.32, 1); }
+.animate-slide-left { animation: slide-left 0.35s cubic-bezier(0.23, 1, 0.32, 1); }
+.animate-slide-right { animation: slide-right 0.35s cubic-bezier(0.23, 1, 0.32, 1); }
+
+/* === Neon text glow === */
+@keyframes neon-pulse {
+}
+.animate-neon { }
+
+/* === Win celebration flash === */
+@keyframes win-flash {
+	0% { opacity: 0; }
+	20% { opacity: 1; }
+	40% { opacity: 0.3; }
+	60% { opacity: 1; }
+	80% { opacity: 0.5; }
+	100% { opacity: 1; }
+}
+.animate-win-flash { animation: win-flash 0.6s ease-out; }
+
+/* === Coin spin (3D Y axis) === */
+@keyframes spin-y {
+	from { transform: rotateY(0deg); }
+	to { transform: rotateY(360deg); }
+}
+.animate-spin-y { animation: spin-y 0.6s linear infinite; }
+
+/* === Bounce in === */
+@keyframes bounce-in {
+	0% { transform: scale(0.3); opacity: 0; }
+	40% { transform: scale(1.1); }
+	60% { transform: scale(0.9); }
+	80% { transform: scale(1.03); }
+	100% { transform: scale(1); opacity: 1; }
+}
+.animate-bounce-in { animation: bounce-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+/* Reel cell smooth state transitions */
+.reel-cell {
+	transition: background 0.3s ease, box-shadow 0.3s ease;
+	contain: layout style paint;
+	will-change: auto;
+}
+
+/* === Casino shadows === */
+.casino-shadow { box-shadow: 0 2px 8px -2px rgba(0,0,0,0.12), 0 1px 3px -1px rgba(0,0,0,0.08); }
+.casino-shadow-lg { box-shadow: 0 4px 16px -4px rgba(0,0,0,0.15), 0 2px 6px -2px rgba(0,0,0,0.1); }
+
+/* === Glass / frosted === */
+.glass {
+	background: rgba(255,255,255,0.7);
+	backdrop-filter: blur(10px);
+	-webkit-backdrop-filter: blur(10px);
+}
+:root.dark .glass {
+	background: rgba(30,30,30,0.7);
+}
+
+/* === Metallic surface === */
+.metallic-gold {
+	background: linear-gradient(135deg, #f59e0b, #fbbf24, #f59e0b, #d97706);
+	background-size: 300% 300%;
+}
+.metallic-silver {
+	background: linear-gradient(135deg, #9ca3af, #e5e7eb, #d1d5db, #9ca3af);
+	background-size: 300% 300%;
+}
+
+/* =====================================================
+   CARD DEALING ANIMATIONS
+   ===================================================== */
+
+/* Card deals from deck corner to table position with arc */
+@keyframes deal-card {
+	0% { transform: translate(var(--deal-x, 80px), var(--deal-y, -60px)) rotate(-8deg) scale(0.6); opacity: 0; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.4)); }
+	10% { opacity: 1; }
+	60% { transform: translate(3px, -2px) rotate(1deg) scale(1.03); filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2)); }
+	80% { transform: translate(-0.5px, 0.5px) rotate(-0.3deg) scale(1); filter: drop-shadow(0 1px 2px rgba(0,0,0,0.1)); }
+	100% { transform: translate(0, 0) rotate(0) scale(1); opacity: 1; filter: none; }
+}
+.animate-deal { animation: deal-card 0.5s cubic-bezier(0.22, 0.68, 0.35, 1) both; }
+
+/* Riffle shuffle: left half splits out then returns */
+@keyframes shuffle-half-left {
+	0% { transform: translateX(0) translateY(0) rotate(0); }
+	20% { transform: translateX(-22px) translateY(-4px) rotate(-4deg); }
+	40% { transform: translateX(-22px) translateY(-6px) rotate(-3deg); }
+	55% { transform: translateX(-8px) translateY(-8px) rotate(-1deg); }
+	70% { transform: translateX(0) translateY(-3px) rotate(0); }
+	100% { transform: translateX(0) translateY(0) rotate(0); }
+}
+/* Riffle shuffle: right half splits out then returns */
+@keyframes shuffle-half-right {
+	0% { transform: translateX(0) translateY(0) rotate(0); }
+	20% { transform: translateX(22px) translateY(-4px) rotate(4deg); }
+	40% { transform: translateX(22px) translateY(-6px) rotate(3deg); }
+	55% { transform: translateX(8px) translateY(-8px) rotate(1deg); }
+	70% { transform: translateX(0) translateY(-3px) rotate(0); }
+	100% { transform: translateX(0) translateY(0) rotate(0); }
+}
+/* Cut: top portion lifts, shifts, and places */
+@keyframes shuffle-cut {
+	0% { transform: translateX(0) translateY(0) rotate(0); }
+	25% { transform: translateX(0) translateY(-18px) rotate(0); }
+	50% { transform: translateX(16px) translateY(-18px) rotate(2deg); }
+	75% { transform: translateX(16px) translateY(-2px) rotate(1deg); }
+	90% { transform: translateX(2px) translateY(1px) rotate(0); }
+	100% { transform: translateX(0) translateY(0) rotate(0); }
+}
+.animate-shuffle-left { animation: shuffle-half-left 0.5s ease-in-out; }
+.animate-shuffle-right { animation: shuffle-half-right 0.5s ease-in-out; }
+.animate-shuffle-cut { animation: shuffle-cut 0.5s ease-in-out; }
+
+/* Wash/Spread shuffle — cards swirl around the table */
+@keyframes shuffle-wash {
+    0% { transform: translateX(0) translateY(0) rotate(0); }
+    15% { transform: translateX(-30px) translateY(-8px) rotate(-12deg); }
+    30% { transform: translateX(25px) translateY(5px) rotate(15deg); }
+    45% { transform: translateX(-15px) translateY(-12px) rotate(-8deg); }
+    60% { transform: translateX(20px) translateY(8px) rotate(10deg); }
+    75% { transform: translateX(-8px) translateY(-5px) rotate(-5deg); }
+    90% { transform: translateX(3px) translateY(2px) rotate(2deg); }
+    100% { transform: translateX(0) translateY(0) rotate(0); }
+}
+.animate-shuffle-wash { animation: shuffle-wash 0.6s ease-in-out; }
+
+/* Fan spread — cards fan out like a dealer showing the deck */
+@keyframes shuffle-fan {
+    0% { transform: rotate(0) translateX(0); }
+    30% { transform: rotate(-25deg) translateX(-20px); }
+    70% { transform: rotate(25deg) translateX(20px); }
+    100% { transform: rotate(0) translateX(0); }
+}
+.animate-shuffle-fan { animation: shuffle-fan 0.6s ease-in-out; }
+
+/* Cascade/Bridge — cards waterfall down */
+@keyframes shuffle-bridge {
+    0% { transform: translateY(0) scale(1); }
+    20% { transform: translateY(-25px) scale(1.05); }
+    40% { transform: translateY(-20px) scaleY(0.95); }
+    60% { transform: translateY(-8px) scale(1.02); }
+    80% { transform: translateY(-3px) scale(0.99); }
+    100% { transform: translateY(0) scale(1); }
+}
+.animate-shuffle-bridge { animation: shuffle-bridge 0.5s ease-in-out; }
+
+/* Double riffle — more dramatic riffle with extra splits */
+@keyframes shuffle-double-riffle-left {
+    0% { transform: translateX(0) translateY(0) rotate(0); }
+    15% { transform: translateX(-28px) translateY(-6px) rotate(-5deg); }
+    30% { transform: translateX(-5px) translateY(-3px) rotate(-1deg); }
+    45% { transform: translateX(-25px) translateY(-8px) rotate(-4deg); }
+    60% { transform: translateX(-3px) translateY(-2px) rotate(0); }
+    75% { transform: translateX(-10px) translateY(-4px) rotate(-2deg); }
+    100% { transform: translateX(0) translateY(0) rotate(0); }
+}
+.animate-shuffle-double-riffle-left { animation: shuffle-double-riffle-left 0.5s ease-in-out; }
+
+/* Chip toss from bottom to table */
+@keyframes chip-toss {
+	0% { transform: translateY(60px) scale(0.5) rotate(0); opacity: 0; }
+	40% { transform: translateY(-8px) scale(1.1) rotate(180deg); opacity: 1; }
+	60% { transform: translateY(2px) scale(0.95) rotate(270deg); }
+	80% { transform: translateY(-1px) scale(1.02) rotate(340deg); }
+	100% { transform: translateY(0) scale(1) rotate(360deg); opacity: 1; }
+}
+.animate-chip-toss { animation: chip-toss 0.5s cubic-bezier(0.23, 1, 0.32, 1) both; }
+
+/* Chip stack settle */
+@keyframes chip-land {
+	0% { transform: translateY(-20px) scale(0.8); opacity: 0; }
+	60% { transform: translateY(2px) scale(1.05); opacity: 1; }
+	100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+.animate-chip-land { animation: chip-land 0.3s ease-out both; }
+
+/* =====================================================
+   CASINO TABLE STYLES
+   ===================================================== */
+
+/* === Realistic felt texture === */
+.casino-felt {
+	position: relative;
+	background:
+		radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.06) 0%, transparent 60%),
+		linear-gradient(180deg, #1a5c32 0%, #14532d 30%, #166534 70%, #14532d 100%);
+	border: 4px solid #1a3a2a;
+	box-shadow:
+		inset 0 0 60px rgba(0,0,0,0.3),
+		inset 0 2px 0 rgba(255,255,255,0.05),
+		0 8px 32px rgba(0,0,0,0.4);
+	overflow: hidden;
+}
+.casino-felt::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background:
+		repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.02) 2px, rgba(0,0,0,0.02) 4px),
+		repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(0,0,0,0.01) 2px, rgba(0,0,0,0.01) 4px);
+	pointer-events: none;
+	border-radius: inherit;
+}
+.casino-felt::after {
+	content: '';
+	position: absolute;
+	inset: 4px;
+	border: 1px solid rgba(255,255,255,0.08);
+	border-radius: inherit;
+	pointer-events: none;
+}
+
+/* Gold rim around table */
+.casino-felt-gold {
+	border-color: transparent;
+	box-shadow:
+		inset 0 0 30px rgba(0,0,0,0.2),
+		inset 0 1px 0 rgba(255,255,255,0.04),
+		0 0 0 3px #8B6914,
+		0 0 0 4px #C4972A,
+		0 4px 16px rgba(0,0,0,0.25);
+}
+
+/* === Blackjack table arc === */
+.blackjack-table {
+	border-radius: 0 0 50% 50% / 0 0 30% 30%;
+	padding-bottom: 2rem;
+}
+.blackjack-table .bj-spot {
+	width: 52px;
+	height: 70px;
+	border: 2px dashed rgba(255,255,255,0.15);
+	border-radius: 8px;
+}
+
+/* === Baccarat table markings === */
+.baccarat-table {
+	border-radius: 1rem;
+}
+.baccarat-side {
+	border: 1px solid rgba(255,255,255,0.12);
+	border-radius: 0.75rem;
+	padding: 0.75rem;
+	position: relative;
+}
+.baccarat-side::before {
+	content: '';
+	position: absolute;
+	inset: 3px;
+	border: 1px solid rgba(255,255,255,0.06);
+	border-radius: 0.6rem;
+	pointer-events: none;
+}
+
+/* === Dragon Tiger table === */
+.dt-table {
+	border-radius: 1rem;
+}
+.dt-side {
+	flex: 1;
+	border: 2px solid rgba(255,255,255,0.1);
+	border-radius: 0.75rem;
+	padding: 1rem 0.5rem;
+	text-align: center;
+	position: relative;
+}
+.dt-side-dragon { background: rgba(59, 130, 246, 0.08); }
+.dt-side-tiger { background: rgba(239, 68, 68, 0.08); }
+
+/* === Roulette table === */
+.roulette-table {
+	border-radius: 1rem;
+	background:
+		radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.04) 0%, transparent 60%),
+		linear-gradient(180deg, #1a3a2a 0%, #14532d 50%, #0f3d1f 100%);
+}
+
+/* === Dice / Sicbo table === */
+.dice-table {
+	border-radius: 1rem;
+	background:
+		radial-gradient(ellipse at 50% 30%, rgba(255,255,255,0.05) 0%, transparent 60%),
+		linear-gradient(180deg, #292524 0%, #1c1917 50%, #0c0a09 100%);
+	border: 4px solid #44403c;
+	box-shadow:
+		inset 0 0 40px rgba(0,0,0,0.4),
+		0 0 0 1px rgba(255,255,255,0.05),
+		0 8px 32px rgba(0,0,0,0.4);
+}
+
+/* === Pokdeng / Thai card table === */
+.pokdeng-table {
+	border-radius: 1rem;
+}
+
+/* === Hi-Lo table === */
+.hilo-table {
+	border-radius: 1rem;
+}
+
+/* === Card position markers === */
+.card-spot {
+	border: 2px dashed rgba(255,255,255,0.12);
+	border-radius: 8px;
+	transition: border-color 0.3s;
+}
+.card-spot-active {
+	border-color: rgba(255,255,255,0.25);
+}
+
+/* === Betting circle on table === */
+.bet-circle {
+	width: 64px;
+	height: 64px;
+	border: 2px solid rgba(255,255,255,0.2);
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	position: relative;
+	background: rgba(0,0,0,0.1);
+}
+.bet-circle::before {
+	content: '';
+	position: absolute;
+	inset: 3px;
+	border: 1px solid rgba(255,255,255,0.1);
+	border-radius: 50%;
+}
+.bet-circle-active {
+	border-color: rgba(234, 179, 8, 0.6);
+	background: rgba(234, 179, 8, 0.08);
+	box-shadow: 0 0 12px rgba(234, 179, 8, 0.2);
+}
+
+/* === Casino chip === */
+.casino-chip {
+	width: 32px;
+	height: 32px;
+	border-radius: 50%;
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 10px;
+	font-weight: 800;
+	color: white;
+	text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+	box-shadow:
+		inset 0 2px 3px rgba(255,255,255,0.3),
+		inset 0 -2px 3px rgba(0,0,0,0.3),
+		0 2px 6px rgba(0,0,0,0.3);
+}
+.casino-chip::before {
+	content: '';
+	position: absolute;
+	inset: 3px;
+	border-radius: 50%;
+	border: 2px dashed rgba(255,255,255,0.4);
+}
+.chip-red { background: radial-gradient(ellipse at 35% 30%, #f87171, #dc2626 50%, #991b1b 100%); }
+.chip-blue { background: radial-gradient(ellipse at 35% 30%, #60a5fa, #2563eb 50%, #1e40af 100%); }
+.chip-green { background: radial-gradient(ellipse at 35% 30%, #4ade80, #16a34a 50%, #166534 100%); }
+.chip-purple { background: radial-gradient(ellipse at 35% 30%, #c084fc, #9333ea 50%, #6b21a8 100%); }
+.chip-gold { background: radial-gradient(ellipse at 35% 30%, #fde68a, #f59e0b 50%, #b45309 100%); color: #78350f; }
+.chip-black { background: radial-gradient(ellipse at 35% 30%, #6b7280, #374151 50%, #111827 100%); }
+
+/* Chip size variants */
+.chip-sm { width: 24px; height: 24px; font-size: 8px; }
+.chip-sm::before { inset: 2px; border-width: 1.5px; }
+.chip-lg { width: 40px; height: 40px; font-size: 12px; }
+.chip-lg::before { inset: 4px; }
+
+/* === Table label text === */
+.table-label {
+	font-size: 10px;
+	text-transform: uppercase;
+	letter-spacing: 0.15em;
+	color: rgba(255,255,255,0.5);
+	font-weight: 600;
+}
+.table-label-gold {
+	color: rgba(234, 179, 8, 0.7);
+}
+
+/* === Deck visual (stacked card backs) === */
+.deck-stack {
+	position: relative;
+	display: inline-block;
+}
+.deck-card {
+	position: absolute;
+	top: 0;
+	left: 0;
+}
+
+/* =====================================================
+   DICE / SICBO ANIMATIONS
+   ===================================================== */
+
+/* Dice tumble with 3D perspective bounce */
+@keyframes dice-tumble-3d {
+	0% { transform: perspective(200px) rotateX(0deg) rotateZ(0deg) translateY(0) scale(1); }
+	12% { transform: perspective(200px) rotateX(45deg) rotateZ(15deg) translateY(-12px) scale(0.92); }
+	25% { transform: perspective(200px) rotateX(90deg) rotateZ(-10deg) translateY(-8px) scale(0.88); }
+	37% { transform: perspective(200px) rotateX(180deg) rotateZ(20deg) translateY(-15px) scale(0.9); }
+	50% { transform: perspective(200px) rotateX(270deg) rotateZ(-15deg) translateY(-6px) scale(0.95); }
+	62% { transform: perspective(200px) rotateX(320deg) rotateZ(8deg) translateY(-10px) scale(0.9); }
+	75% { transform: perspective(200px) rotateX(340deg) rotateZ(-5deg) translateY(-4px) scale(0.96); }
+	87% { transform: perspective(200px) rotateX(355deg) rotateZ(2deg) translateY(-2px) scale(0.98); }
+	100% { transform: perspective(200px) rotateX(360deg) rotateZ(0deg) translateY(0) scale(1); }
+}
+.dice-tumble { animation: dice-tumble-3d 0.5s ease-in-out infinite; }
+
+/* Dice bounce landing */
+@keyframes dice-land {
+	0% { transform: perspective(200px) rotateX(15deg) translateY(-20px) scale(0.9); }
+	40% { transform: perspective(200px) rotateX(-3deg) translateY(4px) scale(1.06); }
+	60% { transform: perspective(200px) rotateX(1deg) translateY(-2px) scale(0.98); }
+	80% { transform: perspective(200px) rotateX(0) translateY(1px) scale(1.01); }
+	100% { transform: perspective(200px) rotateX(0) translateY(0) scale(1); }
+}
+.dice-land { animation: dice-land 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+/* Bowl/cup shake */
+@keyframes bowl-shake {
+	0%,100% { transform: translateX(0) translateY(0) rotate(0); }
+	10% { transform: translateX(-4px) translateY(-2px) rotate(-1deg); }
+	20% { transform: translateX(3px) translateY(1px) rotate(0.8deg); }
+	30% { transform: translateX(-3px) translateY(-1px) rotate(-0.6deg); }
+	40% { transform: translateX(2px) translateY(1px) rotate(0.4deg); }
+	50% { transform: translateX(-2px) translateY(-1px) rotate(-0.3deg); }
+	60% { transform: translateX(1px) translateY(0) rotate(0.2deg); }
+}
+.animate-bowl-shake { animation: bowl-shake 0.5s ease-out; }
+
+/* =====================================================
+   MINE / TILE REVEAL ANIMATIONS
+   ===================================================== */
+
+@keyframes tile-reveal {
+	0% { transform: perspective(600px) rotateY(90deg) scale(0.8); opacity: 0; }
+	60% { transform: perspective(600px) rotateY(-5deg) scale(1.05); opacity: 1; }
+	100% { transform: perspective(600px) rotateY(0) scale(1); opacity: 1; }
+}
+.animate-tile-reveal { animation: tile-reveal 0.4s cubic-bezier(0.23, 1, 0.32, 1); }
+
+@keyframes mine-explode {
+	0% { transform: scale(1); }
+	30% { transform: scale(1.3); filter: brightness(2); }
+	60% { transform: scale(0.9); }
+	100% { transform: scale(1); filter: brightness(1); }
+}
+.animate-mine-explode { animation: mine-explode 0.5s ease-out; }
+
+/* =====================================================
+   RESULT ANIMATIONS
+   ===================================================== */
+
+/* Big result number counter */
+@keyframes result-zoom {
+	0% { transform: scale(0) rotate(-10deg); opacity: 0; }
+	50% { transform: scale(1.2) rotate(2deg); opacity: 1; }
+	70% { transform: scale(0.95) rotate(-0.5deg); }
+	100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+.animate-result-zoom { animation: result-zoom 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+/* Win/lose subtle indicator */
+.result-glow-win {
+	transition: filter 0.3s;
+}
+.result-glow-lose {
+	transition: filter 0.3s;
+}
+
+/* Confetti burst (pseudo-element approach) */
+@keyframes confetti-fall {
+	0% { transform: translateY(-10px) rotate(0); opacity: 1; }
+	100% { transform: translateY(40px) rotate(720deg); opacity: 0; }
+}
+
+/* =====================================================
+   SMOOTH TRANSITIONS
+   ===================================================== */
+.transition-game { transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1); }
+.transition-fast { transition: all 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94); }
+.transition-smooth { transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1); }
+.transition-spring { transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+/* Smooth active press for all buttons */
+button:not(:disabled):active {
+	transform: scale(0.97);
+	transition-duration: 0.1s;
+}
+
+/* =====================================================
+   SPIN BUTTON — PREMIUM CASINO DESIGN
+   ===================================================== */
+
+.spin-btn {
+	position: relative;
+	width: 5.5rem;
+	height: 5.5rem;
+	border: none;
+	outline: none;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	-webkit-tap-highlight-color: transparent;
+	transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease, filter 0.2s ease;
+	overflow: hidden;
+}
+
+/* "SPIN" / "FREE" text */
+.spin-btn__text {
+	position: relative;
+	z-index: 3;
+	font-size: 1.05rem;
+	font-weight: 900;
+	letter-spacing: 0.18em;
+	color: white;
+	text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
+.spin-btn__text--spinning {
+	animation: spin-text-pulse 0.8s ease-in-out infinite;
+	opacity: 0.7;
+}
+
+@keyframes spin-text-pulse {
+	0%, 100% { opacity: 0.5; letter-spacing: 0.18em; }
+	50% { opacity: 1; letter-spacing: 0.25em; }
+}
+
+/* Animated rotating border */
+.spin-btn__border {
+	position: absolute;
+	inset: -3px;
+	border-radius: 50%;
+	pointer-events: none;
+	z-index: 0;
+	opacity: 0;
+	transition: opacity 0.3s ease;
+}
+
+.spin-btn__border::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	border-radius: 50%;
+	padding: 2.5px;
+	background: conic-gradient(from 0deg, transparent, rgba(255,255,255,0.8), transparent, rgba(255,255,255,0.4), transparent);
+	mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+	-webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+	mask-composite: exclude;
+	-webkit-mask-composite: xor;
+	animation: spin-border-rotate 2.5s linear infinite;
+}
+
+@keyframes spin-border-rotate {
+	from { transform: rotate(0deg); }
+	to { transform: rotate(360deg); }
+}
+
+/* Shine sweep across button */
+.spin-btn__shine {
+	position: absolute;
+	inset: 0;
+	border-radius: 50%;
+	pointer-events: none;
+	z-index: 2;
+	overflow: hidden;
+}
+
+.spin-btn__shine::before {
+	content: '';
+	position: absolute;
+	top: -50%;
+	left: -60%;
+	width: 40%;
+	height: 200%;
+	background: linear-gradient(100deg, transparent 0%, rgba(255,255,255,0) 40%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0) 60%, transparent 100%);
+	animation: spin-shine-sweep 3s ease-in-out infinite;
+}
+
+@keyframes spin-shine-sweep {
+	0%, 100% { transform: translateX(-100%); }
+	50% { transform: translateX(350%); }
+}
+
+/* ---- Normal (purple) ---- */
+.spin-btn--normal {
+	background: linear-gradient(145deg, #a855f7 0%, #7c3aed 40%, #6d28d9 70%, #4c1d95 100%);
+	box-shadow:
+		0 8px 24px rgba(109,40,217,0.55),
+		0 2px 4px rgba(0,0,0,0.3),
+		inset 0 1px 0 rgba(255,255,255,0.3),
+		inset 0 -2px 6px rgba(0,0,0,0.25);
+	/* idle glow removed */
+}
+
+@keyframes spin-idle-glow {
+	0%, 100% { box-shadow: 0 8px 24px rgba(109,40,217,0.55), 0 2px 4px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.3), inset 0 -2px 6px rgba(0,0,0,0.25); }
+	50% { box-shadow: 0 8px 32px rgba(109,40,217,0.7), 0 0 48px rgba(168,85,247,0.2), 0 2px 4px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.3), inset 0 -2px 6px rgba(0,0,0,0.25); }
+}
+
+.spin-btn--normal:not(:disabled):hover {
+	transform: translateY(-3px) scale(1.08);
+	filter: brightness(1.15);
+	box-shadow:
+		0 12px 36px rgba(109,40,217,0.65),
+		0 0 56px rgba(168,85,247,0.25),
+		0 3px 8px rgba(0,0,0,0.2),
+		inset 0 1px 0 rgba(255,255,255,0.35),
+		inset 0 -2px 6px rgba(0,0,0,0.2);
+	animation: none;
+}
+.spin-btn--normal:not(:disabled):hover .spin-btn__border {
+	opacity: 1;
+}
+.spin-btn--normal:not(:disabled):hover .spin-btn__shine::before {
+	animation-duration: 1.5s;
+}
+
+.spin-btn--normal:not(:disabled):active {
+	transform: translateY(3px) scale(0.93);
+	filter: brightness(0.9);
+	box-shadow:
+		0 2px 8px rgba(109,40,217,0.4),
+		inset 0 4px 8px rgba(0,0,0,0.35);
+	transition-duration: 0.06s;
+	animation: none;
+}
+
+/* ---- Free spin (gold) ---- */
+.spin-btn--free {
+	background: linear-gradient(145deg, #fbbf24 0%, #f59e0b 40%, #d97706 70%, #92400e 100%);
+	box-shadow:
+		0 8px 24px rgba(245,158,11,0.55),
+		0 2px 4px rgba(0,0,0,0.3),
+		inset 0 1px 0 rgba(255,255,255,0.4),
+		inset 0 -2px 6px rgba(0,0,0,0.2);
+	/* idle glow removed */
+}
+
+@keyframes spin-idle-glow-gold {
+	0%, 100% { box-shadow: 0 8px 24px rgba(245,158,11,0.55), 0 2px 4px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.4), inset 0 -2px 6px rgba(0,0,0,0.2); }
+	50% { box-shadow: 0 8px 32px rgba(245,158,11,0.7), 0 0 48px rgba(251,191,36,0.2), 0 2px 4px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.4), inset 0 -2px 6px rgba(0,0,0,0.2); }
+}
+
+.spin-btn--free .spin-btn__border::before {
+	background: conic-gradient(from 0deg, transparent, rgba(255,220,100,0.9), transparent, rgba(255,200,50,0.5), transparent);
+}
+
+.spin-btn--free:not(:disabled):hover {
+	transform: translateY(-3px) scale(1.08);
+	filter: brightness(1.12);
+	box-shadow:
+		0 12px 36px rgba(245,158,11,0.65),
+		0 0 56px rgba(251,191,36,0.25),
+		0 3px 8px rgba(0,0,0,0.2),
+		inset 0 1px 0 rgba(255,255,255,0.45),
+		inset 0 -2px 6px rgba(0,0,0,0.15);
+	animation: none;
+}
+.spin-btn--free:not(:disabled):hover .spin-btn__border {
+	opacity: 1;
+}
+
+.spin-btn--free:not(:disabled):active {
+	transform: translateY(3px) scale(0.93);
+	filter: brightness(0.85);
+	box-shadow:
+		0 2px 8px rgba(245,158,11,0.4),
+		inset 0 4px 8px rgba(0,0,0,0.3);
+	transition-duration: 0.06s;
+	animation: none;
+}
+
+/* ---- Spinning state ---- */
+.spin-btn--spinning {
+	animation: spin-btn-active 0.9s ease-in-out infinite;
+	pointer-events: none;
+}
+.spin-btn--spinning .spin-btn__border {
+	opacity: 1;
+}
+.spin-btn--spinning .spin-btn__border::before {
+	animation-duration: 0.8s;
+}
+.spin-btn--spinning .spin-btn__shine::before {
+	animation: none;
+	opacity: 0;
+}
+
+@keyframes spin-btn-active {
+	0%, 100% { transform: scale(1); }
+	50% { transform: scale(1.05); }
+}
+
+@media (min-width: 640px) {
+	.spin-btn { width: 6rem; height: 6rem; }
+	.spin-btn__text { font-size: 1.15rem; }
+}
+
+/* =====================================================
+   TOAST NOTIFICATION (slide from left)
+   ===================================================== */
+
+@keyframes ticker-up {
+	from { max-height: 0; opacity: 0; }
+	to { max-height: 3rem; opacity: 1; }
+}
+@keyframes ticker-down {
+	from { max-height: 3rem; opacity: 1; }
+	to { max-height: 0; opacity: 0; }
+}
+
+.ticker-wrap { overflow: hidden; }
+.ticker-enter {
+	animation: ticker-up 0.3s cubic-bezier(0.22, 0.68, 0.35, 1) forwards;
+}
+.ticker-exit {
+	animation: ticker-down 0.25s cubic-bezier(0.55, 0, 1, 0.45) forwards;
+}
+
+/* =====================================================
+   WIN CELL BORDER FLASH
+   ===================================================== */
+
+@keyframes win-cell-flash {
+	0%, 100% { background: rgba(139, 92, 246, 0.1); }
+	50% { background: rgba(139, 92, 246, 0.25); }
+}
+.win-cell-glow {
+	z-index: 1;
+	position: relative;
+	background: rgba(139, 92, 246, 0.18);
+	animation: win-cell-flash 1.2s ease-in-out infinite;
+}
+.win-cell-gold {
+	z-index: 1;
+	position: relative;
+	animation: win-cell-gold-flash 1s ease-in-out infinite;
+}
+@keyframes win-cell-gold-flash {
+	0%, 100% { box-shadow: 0 0 0 1px rgba(234, 179, 8, 0.4); background: rgba(234, 179, 8, 0.08); }
+	50% { box-shadow: 0 0 0 1px rgba(234, 179, 8, 1); background: rgba(234, 179, 8, 0.18); }
+}
+
+/* =====================================================
+   SLOT SYMBOL EFFECTS — escalating per tier
+   ===================================================== */
+
+/* Base symbol */
+.sym {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 1.8em;
+	line-height: 1;
+}
+
+/* Tier 1: Common — no effect, just clean */
+.sym-t1 { }
+
+/* Tier 2: Uncommon */
+.sym-t2 { }
+
+/* Tier 3: Rare */
+.sym-t3 {
+	animation: sym-pulse-soft 2.5s ease-in-out infinite;
+}
+
+/* Tier 4: Epic — pulse */
+.sym-t4 {
+	animation: sym-pulse 2s ease-in-out infinite;
+}
+.sym-crown { }
+
+/* Scatter: pulse */
+.sym-scatter {
+	animation: sym-scatter-glow 1.8s ease-in-out infinite;
+}
+
+/* Shine sweep overlay */
+.sym-shine {
+	position: absolute;
+	inset: -2px;
+	border-radius: 6px;
+	overflow: hidden;
+	pointer-events: none;
+}
+.sym-shine::after {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: -100%;
+	width: 60%;
+	height: 100%;
+	background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+	animation: sym-shine-sweep 3s ease-in-out infinite;
+}
+.sym-t4 .sym-shine::after,
+.sym-scatter .sym-shine::after {
+	background: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent);
+	animation-duration: 2.2s;
+}
+
+/* Sparkle dots */
+.sym-sparkle {
+	position: absolute;
+	width: 4px;
+	height: 4px;
+	border-radius: 50%;
+	background: #fbbf24;
+	box-shadow: 0 0 4px 1px rgba(251,191,36,0.6);
+	animation: sym-sparkle-float 2s ease-in-out infinite;
+	top: 0;
+	right: 2px;
+	pointer-events: none;
+}
+.sym-sparkle.s2 {
+	width: 3px;
+	height: 3px;
+	animation-delay: -0.8s;
+	animation-duration: 2.4s;
+	top: auto;
+	bottom: 2px;
+	right: auto;
+	left: 0;
+	background: #fde68a;
+}
+.sym-sparkle.s3 {
+	width: 3px;
+	height: 3px;
+	animation-delay: -1.4s;
+	animation-duration: 1.8s;
+	top: 50%;
+	right: auto;
+	left: -2px;
+	background: #c084fc;
+	box-shadow: 0 0 4px 1px rgba(192,132,252,0.6);
+}
+
+/* Scatter sparkles are purple */
+.sym-scatter .sym-sparkle {
+	background: #e9d5ff;
+	box-shadow: 0 0 4px 1px rgba(168,85,247,0.6);
+}
+.sym-scatter .sym-sparkle.s2 {
+	background: #c084fc;
+	box-shadow: 0 0 4px 1px rgba(192,132,252,0.5);
+}
+
+/* --- Keyframes --- */
+
+@keyframes sym-pulse-soft {
+	0%, 100% { transform: scale(1); }
+	50% { transform: scale(1.04); }
+}
+
+@keyframes sym-pulse {
+	0%, 100% { transform: scale(1); }
+	50% { transform: scale(1.08); }
+}
+
+@keyframes sym-scatter-glow {
+	0%, 100% {
+		transform: scale(1);
+	}
+	50% {
+		transform: scale(1.1);
+	}
+}
+
+@keyframes sym-shine-sweep {
+	0%, 100% { left: -100%; }
+	50% { left: 150%; }
+}
+
+@keyframes sym-sparkle-float {
+	0%, 100% {
+		transform: translateY(0) scale(1);
+		opacity: 0.4;
+	}
+	50% {
+		transform: translateY(-6px) scale(1.3);
+		opacity: 1;
+	}
+}
+
+/* =====================================================
+   EVENT ANIMATIONS
+   ===================================================== */
+
+/* Streak pulse for current day */
+@keyframes streak-pulse {
+	0%, 100% { box-shadow: 0 0 0 0 rgba(109, 40, 217, 0.3); }
+	50% { box-shadow: 0 0 0 6px rgba(109, 40, 217, 0); }
+}
+.streak-pulse { animation: streak-pulse 2s ease-in-out infinite; }
+
+/* Progress bar fill */
+@keyframes progress-fill {
+	from { width: 0; }
+}
+.animate-progress-fill { animation: progress-fill 0.8s ease-out; }
+
+/* =====================================================
+   SLOT WIN GOLDEN SPARKLE
+   ===================================================== */
+
+@keyframes golden-sparkle {
+	0%, 100% { opacity: 0.6; }
+	50% { opacity: 1; }
+}
+@keyframes sparkle-move {
+	0% { background-position: 0% 50%; }
+	100% { background-position: 200% 50%; }
+}
+
+.slot-win-bar {
+	background: white;
+	position: relative;
+	overflow: hidden;
+	border: 1px solid #fbbf24;
+}
+.slot-win-bar::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(90deg, transparent 0%, rgba(251,191,36,0.15) 25%, rgba(245,158,11,0.3) 50%, rgba(251,191,36,0.15) 75%, transparent 100%);
+	background-size: 200% 100%;
+	animation: sparkle-move 2s linear infinite;
+}
+.slot-win-bar::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background: radial-gradient(circle at 20% 50%, rgba(251,191,36,0.4) 0%, transparent 40%),
+		radial-gradient(circle at 80% 50%, rgba(245,158,11,0.3) 0%, transparent 40%),
+		radial-gradient(circle at 50% 50%, rgba(253,224,71,0.2) 0%, transparent 50%);
+	animation: golden-sparkle 1.5s ease-in-out infinite;
+}
+
+/* =====================================================
+   CREDIT FLASH ANIMATION (legacy CSS fallback — GSAP now primary)
+   ===================================================== */
+.credit-flash {
+	animation: credit-pulse 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes credit-pulse {
+	0% { transform: scale(1); filter: brightness(1); }
+	25% { transform: scale(1.12); filter: brightness(1.2); background: rgba(250, 204, 21, 0.12); }
+	50% { transform: scale(1.02); }
+	100% { transform: scale(1); filter: brightness(1); }
+}
+
+/* =====================================================
+   GSAP ANIMATION SUPPORT STYLES
+   ===================================================== */
+
+/* Confetti particle container */
+.gsap-confetti-container {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	overflow: hidden;
+	z-index: 50;
+}
+
+/* Individual confetti particle */
+.gsap-confetti {
+	position: absolute;
+	pointer-events: none;
+	will-change: transform, opacity;
+}
+
+/* GSAP ripple on spin button */
+.gsap-ripple {
+	position: absolute;
+	pointer-events: none;
+	will-change: transform, opacity;
+}
+
+/* Payline SVG overlay on the reel grid */
+.payline-svg {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	z-index: 10;
+}
+
+.payline-path {
+	filter: drop-shadow(0 0 4px currentColor);
+	will-change: stroke-dashoffset;
+}
+
+/* Game card 3D tilt support */
+.game-card {
+	transform-style: preserve-3d;
+	will-change: transform;
+}
+
+/* Reel symbol inner wrapper for GSAP targeting */
+.reel-symbol-inner {
+	will-change: transform, opacity;
+}
+
+/* =====================================================
+   ADVANCED ANIMATION SUPPORT CLASSES
+   ===================================================== */
+
+/* Ambient floating particle */
+.ambient-particle {
+	position: absolute;
+	pointer-events: none;
+	will-change: transform, opacity;
+	border-radius: 50%;
+}
+
+/* Floating win text */
+.floating-text {
+	position: absolute;
+	pointer-events: none;
+	font-weight: 900;
+	white-space: nowrap;
+	will-change: transform, opacity;
+	z-index: 60;
+	text-shadow: 0 0 10px currentColor, 0 2px 8px rgba(0,0,0,0.5);
+}
+
+/* Flying credit number */
+.flying-credit {
+	position: fixed;
+	pointer-events: none;
+	z-index: 9999;
+	font-weight: 900;
+	white-space: nowrap;
+	will-change: transform, opacity;
+}
+
+/* Reel grid container needs position relative for particle/overlay children */
+.reel-grid-container {
+	position: relative;
+}
+
+/* 3D Card Flip (used by HiLo) */
+.card-flip-3d { perspective: 800px; }
+.card-flip-3d-inner { position: relative; transform-style: preserve-3d; transition: transform 0.6s ease-out; }
+.card-flip-3d-inner.flipped { transform: rotateY(180deg); }
+.card-flip-3d-front, .card-flip-3d-back { position: absolute; inset: 0; backface-visibility: hidden; }
+.card-flip-3d-front { transform: rotateY(180deg); }
+.card-flip-3d-back { transform: rotateY(0deg); }
